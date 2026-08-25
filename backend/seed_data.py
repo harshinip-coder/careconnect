@@ -49,7 +49,8 @@ def run_seed():
 
     # 4. Create Accounts for all 6 Roles
     users_config = [
-        ("admin@test.com", "admin_user", "System", "Admin", UserRole.ADMIN),
+        ("admin@test.com", "admin", "System", "Admin", UserRole.ADMIN),
+        ("admin2@test.com", "admin_user", "System", "Admin", UserRole.ADMIN),
         ("resident@test.com", "resident_user", "Harshini", "Resident", UserRole.RESIDENT),
         ("guardian@test.com", "primary_guardian", "Sarah", "Guardian", UserRole.GUARDIAN),
         ("secondary_guardian@test.com", "secondary_guardian", "David", "Guardian", UserRole.GUARDIAN),

@@ -1,8 +1,8 @@
 services:
   - type: web
-    name: careconnect
+    name: careconnect-backend
     env: python
-    buildCommand: cd backend && pip install -r requirements.txt && python manage.py collectstatic --no-input && python manage.py migrate
+    buildCommand: cd backend && pip install -r requirements.txt && python manage.py collectstatic --no-input && python manage.py migrate && python seed_data.py
     startCommand: cd backend && daphne -b 0.0.0.0 -p $PORT config.asgi:application
     envVars:
       - key: PYTHON_VERSION
