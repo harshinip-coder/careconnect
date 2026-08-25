@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: careconnect
+    env: python
+    buildCommand: ./build.sh
+    startCommand: cd backend && daphne -b 0.0.0.0 -p $PORT config.asgi:application
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.12
