@@ -2,7 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authStorage } from './authStorage';
 
-export const DEFAULT_API_BASE_URL = 'http://172.17.33.215:8000/api';
+export const DEFAULT_API_BASE_URL = 'https://careconnect-backend-619g.onrender.com/api';
 const SERVER_URL_KEY = 'careconnect_custom_api_url';
 
 let currentBaseUrl = DEFAULT_API_BASE_URL;
