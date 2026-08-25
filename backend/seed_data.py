@@ -73,9 +73,9 @@ def run_seed():
                 "is_active": True
             }
         )
-        if created:
-            u.set_password(DEFAULT_PASSWORD)
-            u.save()
+        u.is_active = True
+        u.set_password(DEFAULT_PASSWORD)
+        u.save()
 
             # Create specific profiles
             if role == UserRole.RESIDENT:
