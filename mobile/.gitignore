@@ -1,0 +1,9 @@
+node_modules/
+.expo
+.expo/
+dist/
+android/
+ios/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
