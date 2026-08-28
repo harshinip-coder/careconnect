@@ -3,7 +3,7 @@ services:
     name: careconnect-backend
     env: python
     buildCommand: cd backend && pip install -r requirements.txt && python manage.py collectstatic --no-input && python manage.py migrate && python seed_data.py
-    startCommand: cd backend && gunicorn config.wsgi:application
+    startCommand: cd backend && python manage.py migrate && python seed_data.py && gunicorn config.wsgi:application
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.12
@@ -11,6 +11,7 @@ services:
         fromDatabase:
           name: careconnect-db
           property: connectionString
+
 
 databases:
   - name: careconnect-db
