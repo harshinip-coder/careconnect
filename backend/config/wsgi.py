@@ -9,3 +9,12 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
 from django.core.wsgi import get_wsgi_application
 application = get_wsgi_application()
+
+try:
+    from society.models import Society
+    if Society.objects.count() == 0:
+        from seed_data import run_seed
+        run_seed()
+except Exception as e:
+    print(f"Auto seed check error: {e}")
+
