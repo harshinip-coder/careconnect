@@ -252,6 +252,8 @@ export const EmergencyChatScreen = ({ route, navigation }: any) => {
             </View>
           </View>
         </View>
+      </Modal>
+
       <LocationMapModal
         visible={showMapModal}
         incident={incident}
