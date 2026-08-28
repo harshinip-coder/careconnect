@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, RefreshControl, Alert
+  TextInput, RefreshControl, Alert, Modal
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { adminAPI, emergencyAPI } from '../services/api';
@@ -47,7 +47,8 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
       setIncidents(incList);
 
       const alertPending = incList.find(i =>
-        i.status === 'PENDING' || i.status === 'ESCALATING'
+        (i.status === 'PENDING' || i.status === 'ESCALATING' || i.status === 'UNRESPONDED') &&
+        (i.current_stage === 'ADMIN' || i.status === 'UNRESPONDED')
       );
       setActiveAlert(alertPending || null);
 
@@ -180,6 +181,44 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
         onDecline={handleDecline}
         onDismiss={() => setActiveAlert(null)}
       />
+
+      {/* Modal for Adding New Society */}
+      <Modal visible={showAddSoc} animationType="slide" transparent={true} onRequestClose={() => setShowAddSoc(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>🏢 Add New Society</Text>
+            <Text style={styles.modalSub}>Register a new residential society in CareConnect</Text>
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Society Name (e.g. Royal Palms)"
+              value={newSocName}
+              onChangeText={setNewSocName}
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Full Address"
+              value={newSocAddr}
+              onChangeText={setNewSocAddr}
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="City (e.g. Metro City)"
+              value={newSocCity}
+              onChangeText={setNewSocCity}
+            />
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowAddSoc(false)}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleCreateSociety}>
+                <Text style={styles.modalSaveText}>Create Society</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Overview 4 Metric Cards Grid */}
       <View style={styles.metricGrid}>
@@ -426,7 +465,7 @@ const styles = StyleSheet.create({
   bgBlue: { backgroundColor: '#F0F9FF' },
   bgLightRed: { backgroundColor: '#FEF2F2' },
   bgGreen: { backgroundColor: '#F0FDFA' },
-  bgPurple: { backgroundColor: '#FFAFDF5' },
+  bgPurple: { backgroundColor: '#F5F3FF' },
   cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   iconCircle: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   iconBlue: { backgroundColor: '#E0F2FE' },
@@ -496,4 +535,14 @@ const styles = StyleSheet.create({
   footerIcon: { fontSize: 24 },
   footerLabel: { fontSize: 10, color: '#64748B', fontWeight: '700' },
   footerVal: { fontSize: 16, fontWeight: '900', color: '#0F172A', marginTop: 2 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContainer: { width: '100%', backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 5 },
+  modalTitle: { fontSize: 18, fontWeight: '900', color: '#0F172A', marginBottom: 4 },
+  modalSub: { fontSize: 12, color: '#64748B', marginBottom: 16 },
+  modalInput: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 14 },
+  modalBtnRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  modalCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#F1F5F9', alignItems: 'center' },
+  modalCancelText: { color: '#64748B', fontWeight: '800', fontSize: 13 },
+  modalSaveBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#0D9488', alignItems: 'center' },
+  modalSaveText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
 });
