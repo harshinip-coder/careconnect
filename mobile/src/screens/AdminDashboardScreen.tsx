@@ -453,6 +453,7 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
           <View>
             <Text style={styles.footerLabel}>Resolution Rate</Text>
             <Text style={[styles.footerVal, { color: '#10B981' }]}>96%</Text>
+          </View>
         </View>
       </View>
 
