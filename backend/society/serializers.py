@@ -22,6 +22,8 @@ class SocietySerializer(serializers.ModelSerializer):
     blocks = BlockSerializer(many=True, read_only=True)
     total_blocks = serializers.SerializerMethodField()
     total_flats = serializers.SerializerMethodField()
+    state = serializers.CharField(required=False, default='State Capital')
+    pincode = serializers.CharField(required=False, default='000000')
 
     class Meta:
         model = Society

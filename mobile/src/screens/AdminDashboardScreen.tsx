@@ -120,7 +120,13 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
       return;
     }
     try {
-      await adminAPI.createSociety({ name: newSocName, address: newSocAddr, city: newSocCity });
+      await adminAPI.createSociety({
+        name: newSocName,
+        address: newSocAddr,
+        city: newSocCity,
+        state: 'State Capital',
+        pincode: '400001'
+      });
       Alert.alert('Society Added', 'New society created successfully.');
       setNewSocName(''); setNewSocAddr(''); setNewSocCity('');
       setShowAddSoc(false);
