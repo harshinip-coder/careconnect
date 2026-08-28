@@ -2,9 +2,11 @@ export type UserRole = 'ADMIN' | 'RESIDENT' | 'GUARDIAN' | 'SOCIETY_MEMBER' | 'S
 
 export type EmergencyCategory = 'MEDICAL' | 'FIRE' | 'SECURITY' | 'GENERAL';
 
-export type IncidentStatus = 'PENDING' | 'ESCALATING' | 'ACCEPTED' | 'ACTIVE_RESPONSE' | 'RESOLVED' | 'CANCELLED' | 'UNRESPONDED';
+export type IncidentStatus = 'PENDING' | 'ESCALATING' | 'RESPONDED' | 'ACCEPTED' | 'ACTIVE_RESPONSE' | 'RESOLVED' | 'CANCELLED' | 'UNRESPONDED';
 
-export type EscalationStage = 'PRIMARY_GUARDIAN' | 'SECONDARY_GUARDIAN' | 'SOCIETY_MEMBER' | 'SECURITY' | 'VOLUNTEER' | 'ADMIN' | 'COMPLETED';
+export type EscalationStage = 'GUARDIAN' | 'PRIMARY_GUARDIAN' | 'SECONDARY_GUARDIAN' | 'SOCIETY_MEMBER' | 'SECURITY' | 'VOLUNTEER' | 'ADMIN' | 'COMPLETED';
+
+export type GuardianType = 'PRIMARY' | 'SECONDARY' | 'NONE';
 
 export interface User {
   id: number;
@@ -20,6 +22,7 @@ export interface User {
   gender?: string;
   address?: string;
   avatar_url?: string;
+  is_location_enabled?: boolean;
   society_details?: { id: number; name: string; city: string } | null;
   flat_details?: { id: number; flat_number: string; block_name: string; floor: number } | null;
   guardian_info?: {
@@ -37,6 +40,21 @@ export interface EscalationHistoryItem {
   ended_at?: string;
   responded_by_name?: string;
   notes?: string;
+}
+
+export interface EmergencyResponder {
+  id: number;
+  user: number;
+  user_details?: User;
+  role: UserRole;
+  guardian_type: GuardianType;
+  response_status: 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'RESPONDING' | 'WITHDRAWN';
+  accepted_at?: string;
+  declined_at?: string;
+  decline_reason?: string;
+  joined_at: string;
+  is_lead: boolean;
+  is_active: boolean;
 }
 
 export interface EmergencyIncident {
@@ -62,6 +80,7 @@ export interface EmergencyIncident {
   resolved_at?: string;
   resolution_note?: string;
   escalation_history: EscalationHistoryItem[];
+  responders?: EmergencyResponder[];
 }
 
 export interface NotificationItem {
@@ -80,6 +99,8 @@ export interface ChatMessageItem {
   id: number;
   sender?: number;
   sender_name: string;
+  sender_role?: string;
+  sender_guardian_type?: string;
   message_text: string;
   is_system_message: boolean;
   created_at: string;
@@ -122,4 +143,5 @@ export interface LocationData {
   address?: string;
   location_address?: string;
 }
+
 

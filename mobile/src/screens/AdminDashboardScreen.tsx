@@ -9,6 +9,7 @@ import { User, EmergencyIncident, ResidentialSociety } from '../types';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 import { NotificationBell } from '../components/NotificationBell';
 import { EmergencyAlertModal } from '../components/EmergencyAlertModal';
+import { LocationMapModal } from '../components/LocationMapModal';
 
 export const AdminDashboardScreen = ({ navigation }: any) => {
   const { user } = useAuth();
@@ -21,6 +22,8 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
   const [usersList, setUsersList] = useState<User[]>([]);
   const [societies, setSocieties] = useState<ResidentialSociety[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [showLiveMapModal, setShowLiveMapModal] = useState(false);
+  const [selectedMapIncident, setSelectedMapIncident] = useState<EmergencyIncident | null>(null);
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -335,6 +338,16 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
                       </View>
 
                       <TouchableOpacity
+                        style={[styles.actionBtn, { backgroundColor: '#0D9488', marginBottom: 6 }]}
+                        onPress={() => {
+                          setSelectedMapIncident(inc);
+                          setShowLiveMapModal(true);
+                        }}
+                      >
+                        <Text style={styles.actionBtnText}>📍 View Live Location on Map</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
                         style={styles.actionBtn}
                         onPress={() => navigation.navigate('EmergencyChat', { incidentId: inc.id })}
                       >
@@ -440,9 +453,14 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
           <View>
             <Text style={styles.footerLabel}>Resolution Rate</Text>
             <Text style={[styles.footerVal, { color: '#10B981' }]}>96%</Text>
-          </View>
         </View>
       </View>
+
+      <LocationMapModal
+        visible={showLiveMapModal}
+        incident={selectedMapIncident}
+        onClose={() => setShowLiveMapModal(false)}
+      />
     </ScrollView>
   );
 };

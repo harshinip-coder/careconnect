@@ -6,11 +6,14 @@ import { EmergencyIncident } from '../types';
 import { EmergencyAlertModal } from '../components/EmergencyAlertModal';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 import { NotificationBell } from '../components/NotificationBell';
+import { LocationMapModal } from '../components/LocationMapModal';
 
 export const SecurityDashboardScreen = ({ navigation }: any) => {
   const { user, logout } = useAuth();
   const [incidents, setIncidents] = useState<EmergencyIncident[]>([]);
   const [activeAlert, setActiveAlert] = useState<EmergencyIncident | null>(null);
+  const [showMapModal, setShowMapModal] = useState(false);
+  const [selectedMapIncident, setSelectedMapIncident] = useState<EmergencyIncident | null>(null);
 
   const fetchIncidents = async () => {
     try {
@@ -19,7 +22,7 @@ export const SecurityDashboardScreen = ({ navigation }: any) => {
       setIncidents(list);
 
       const alertPending = list.find(i =>
-        (i.status === 'PENDING' || i.status === 'ESCALATING')
+        (i.status === 'PENDING' || i.status === 'ESCALATING') && i.current_stage === 'SECURITY'
       );
       setActiveAlert(alertPending || null);
     } catch (e) {
@@ -120,46 +123,57 @@ export const SecurityDashboardScreen = ({ navigation }: any) => {
             <Text style={styles.incText}>Category: {inc.category}</Text>
             <Text style={styles.incText}>Location: {inc.location_address}</Text>
 
-            <View style={styles.actionRow}>
-              {inc.status === 'PENDING' || inc.status === 'ESCALATING' ? (
-                <>
-                  <TouchableOpacity
-                    style={[styles.btn, { backgroundColor: '#16A34A' }]}
-                    onPress={() => handleAccept(inc.id)}
-                  >
-                    <Text style={styles.btnText}>✓ ACCEPT EMERGENCY</Text>
-                  </TouchableOpacity>
+            <TouchableOpacity
+              style={{ backgroundColor: '#0D9488', paddingVertical: 10, borderRadius: 8, alignItems: 'center', marginTop: 10 }}
+              onPress={() => {
+                setSelectedMapIncident(inc);
+                setShowMapModal(true);
+              }}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>📍 VIEW LIVE LOCATION ON MAP</Text>
+            </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={[styles.btn, { backgroundColor: '#DC2626' }]}
-                    onPress={() => handleDecline(inc.id)}
-                  >
-                    <Text style={styles.btnText}>✕ DECLINE</Text>
-                  </TouchableOpacity>
+            <View style={styles.actionRow}>
+              {inc.status !== 'RESOLVED' && inc.status !== 'CANCELLED' ? (
+                <>
+                  {!inc.responders?.some(r => r.user === user?.id && (r.response_status === 'CONFIRMED' || r.response_status === 'RESPONDING')) && (
+                    <TouchableOpacity
+                      style={[styles.btn, { backgroundColor: '#16A34A' }]}
+                      onPress={() => handleAccept(inc.id)}
+                    >
+                      <Text style={styles.btnText}>✓ ACCEPT SOS</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {!inc.responders?.some(r => r.user === user?.id && r.response_status === 'DECLINED') && (
+                    <TouchableOpacity
+                      style={[styles.btn, { backgroundColor: '#DC2626' }]}
+                      onPress={() => handleDecline(inc.id)}
+                    >
+                      <Text style={styles.btnText}>✕ DECLINE</Text>
+                    </TouchableOpacity>
+                  )}
                 </>
               ) : null}
 
-              {inc.status === 'ACCEPTED' || inc.status === 'ACTIVE_RESPONSE' ? (
-                <>
-                  <TouchableOpacity
-                    style={[styles.btn, styles.btnChat]}
-                    onPress={() => navigation.navigate('EmergencyChat', { incidentId: inc.id })}
-                  >
-                    <Text style={styles.btnText}>💬 CHAT</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.btn, styles.btnResolve]}
-                    onPress={() => handleResolve(inc.id)}
-                  >
-                    <Text style={styles.btnText}>✅ RESOLVE</Text>
-                  </TouchableOpacity>
-                </>
+              {inc.status !== 'CANCELLED' ? (
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnChat]}
+                  onPress={() => navigation.navigate('EmergencyChat', { incidentId: inc.id })}
+                >
+                  <Text style={styles.btnText}>💬 CHAT & RESOLVE</Text>
+                </TouchableOpacity>
               ) : null}
             </View>
           </View>
         ))
       )}
+
+      <LocationMapModal
+        visible={showMapModal}
+        incident={selectedMapIncident}
+        onClose={() => setShowMapModal(false)}
+      />
 
       <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
         <Text style={styles.logoutText}>SIGN OUT</Text>

@@ -7,12 +7,14 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { chatAPI, emergencyAPI } from '../services/api';
 import { ChatMessageItem, EmergencyIncidentItem } from '../types';
+import { LocationMapModal } from '../components/LocationMapModal';
 
 export const EmergencyChatScreen = ({ route, navigation }: any) => {
   const { incidentId } = route.params;
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [incident, setIncident] = useState<EmergencyIncidentItem | null>(null);
+  const [showMapModal, setShowMapModal] = useState(false);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   
@@ -106,10 +108,15 @@ export const EmergencyChatScreen = ({ route, navigation }: any) => {
     }
 
     const isMe = item.sender === user?.id;
+    let roleBadge = item.sender_role || '';
+    if (item.sender_guardian_type === 'PRIMARY') roleBadge = 'Primary Guardian';
+    else if (item.sender_guardian_type === 'SECONDARY') roleBadge = 'Secondary Guardian';
 
     return (
       <View style={[styles.msgContainer, isMe ? styles.msgMe : styles.msgOther]}>
-        <Text style={styles.senderName}>{item.sender_name}</Text>
+        <Text style={styles.senderName}>
+          {item.sender_name} {roleBadge ? `• ${roleBadge}` : ''}
+        </Text>
         <Text style={isMe ? styles.msgTextMe : styles.msgTextOther}>{item.message_text}</Text>
         <Text style={styles.timeText}>{new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
       </View>
@@ -130,6 +137,13 @@ export const EmergencyChatScreen = ({ route, navigation }: any) => {
           <Text style={styles.headerTitle}>🚨 EMERGENCY CHAT</Text>
           <Text style={styles.headerSub}>Incident #{incident?.incident_number || incidentId}</Text>
         </View>
+
+        <TouchableOpacity
+          style={[styles.resolveHeaderBtn, { backgroundColor: '#0D9488', marginRight: 6 }]}
+          onPress={() => setShowMapModal(true)}
+        >
+          <Text style={styles.resolveHeaderBtnText}>📍 MAP</Text>
+        </TouchableOpacity>
 
         {canResolve && (
           <TouchableOpacity
@@ -238,7 +252,11 @@ export const EmergencyChatScreen = ({ route, navigation }: any) => {
             </View>
           </View>
         </View>
-      </Modal>
+      <LocationMapModal
+        visible={showMapModal}
+        incident={incident}
+        onClose={() => setShowMapModal(false)}
+      />
     </KeyboardAvoidingView>
   );
 };

@@ -23,6 +23,7 @@ class User(AbstractUser):
     gender = models.CharField(max_length=20, blank=True, default='')
     address = models.TextField(blank=True, default='')
     avatar_url = models.CharField(max_length=500, blank=True, default='')
+    is_location_enabled = models.BooleanField(default=True)
     
     class Meta:
         db_table = 'careconnect_users'

@@ -1,14 +1,26 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, ActivityIndicator
+  Alert, ActivityIndicator, Switch
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 
 export const ProfileScreen = ({ navigation }: any) => {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUserProfile } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(user?.is_location_enabled !== false);
+
+  const handleLocationToggle = async (val: boolean) => {
+    setLocationEnabled(val);
+    try {
+      await updateUserProfile({ is_location_enabled: val });
+      Alert.alert('Location Setting Updated', `GPS Location Sharing is now ${val ? 'ENABLED' : 'DISABLED'}.`);
+    } catch {
+      setLocationEnabled(!val);
+      Alert.alert('Error', 'Unable to update location sharing preference.');
+    }
+  };
 
   if (!user) {
     return (
@@ -82,6 +94,21 @@ export const ProfileScreen = ({ navigation }: any) => {
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Role (Read-Only)</Text>
           <Text style={styles.infoValueReadOnly}>{user.role}</Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Location Sharing</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={{ fontSize: 12, fontWeight: '800', color: locationEnabled ? '#10B981' : '#64748B' }}>
+              {locationEnabled ? 'ENABLED (GPS Live)' : 'DISABLED (Fallback)'}
+            </Text>
+            <Switch
+              value={locationEnabled}
+              onValueChange={handleLocationToggle}
+              trackColor={{ false: '#CBD5E1', true: '#99F6E4' }}
+              thumbColor={locationEnabled ? '#0D9488' : '#94A3B8'}
+            />
+          </View>
         </View>
       </View>
 
