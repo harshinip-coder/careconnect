@@ -290,7 +290,7 @@ def accept_emergency_incident(incident_id, responder):
         resp.save()
 
         # Update overall incident status
-        if incident.status in [IncidentStatus.PENDING, IncidentStatus.ESCALATING]:
+        if incident.status in [IncidentStatus.PENDING, IncidentStatus.ESCALATING, IncidentStatus.UNRESPONDED]:
             incident.status = IncidentStatus.RESPONDED
         incident.save()
 

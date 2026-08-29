@@ -19,6 +19,7 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
   const [stats, setStats] = useState({ active_sos: 0, resolved_sos: 0, total_sos: 0, cancelled_sos: 0 });
   const [incidents, setIncidents] = useState<EmergencyIncident[]>([]);
   const [activeAlert, setActiveAlert] = useState<EmergencyIncident | null>(null);
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>([]);
   const [usersList, setUsersList] = useState<User[]>([]);
   const [societies, setSocieties] = useState<ResidentialSociety[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -55,6 +56,7 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
       setIncidents(incList);
 
       const alertPending = incList.find(i =>
+        !dismissedAlertIds.includes(String(i.id)) &&
         (i.status === 'PENDING' || i.status === 'ESCALATING' || i.status === 'UNRESPONDED') &&
         (i.current_stage === 'ADMIN' || i.status === 'UNRESPONDED')
       );
@@ -98,7 +100,7 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
     loadData();
     const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [dismissedAlertIds]);
 
   const handleAccept = async (id: string) => {
     try {
@@ -117,10 +119,14 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
   const handleDecline = async (id: string) => {
     try {
       await emergencyAPI.declineIncident(id);
+    } catch (err: any) {
+      // ignore decline network error
+    } finally {
+      if (id) {
+        setDismissedAlertIds(prev => [...prev, String(id)]);
+      }
       setActiveAlert(null);
       loadData();
-    } catch (err: any) {
-      Alert.alert("Decline Failed", err.response?.data?.message || err.message);
     }
   };
 
@@ -211,7 +217,12 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
         incident={activeAlert}
         onAccept={handleAccept}
         onDecline={handleDecline}
-        onDismiss={() => setActiveAlert(null)}
+        onDismiss={() => {
+          if (activeAlert) {
+            setDismissedAlertIds(prev => [...prev, String(activeAlert.id)]);
+          }
+          setActiveAlert(null);
+        }}
       />
 
       {/* Modal for Adding New Society */}
