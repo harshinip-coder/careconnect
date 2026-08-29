@@ -274,6 +274,9 @@ def accept_emergency_incident(incident_id, responder):
             defaults={'role': responder.role}
         )
 
+        if not created and resp.response_status == ResponseStatus.CONFIRMED:
+            return True, "Emergency response already confirmed."
+
         g_type = determine_guardian_type(incident.resident, responder)
         resp.role = responder.role
         resp.guardian_type = g_type
@@ -339,6 +342,9 @@ def decline_emergency_incident(incident_id, responder, reason=''):
             user=responder,
             defaults={'role': responder.role}
         )
+
+        if not created and resp.response_status == ResponseStatus.DECLINED:
+            return True, "Emergency response already declined."
 
         resp.role = responder.role
         resp.guardian_type = g_type

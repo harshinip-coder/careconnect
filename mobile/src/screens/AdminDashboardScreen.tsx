@@ -55,6 +55,17 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
       const incList: EmergencyIncident[] = Array.isArray(rawInc) ? rawInc : (rawInc?.results || rawInc?.data || []);
       setIncidents(incList);
 
+      const activeCount = incList.filter(i => i.status !== 'RESOLVED' && i.status !== 'CANCELLED').length;
+      const resolvedCount = incList.filter(i => i.status === 'RESOLVED').length;
+      const cancelledCount = incList.filter(i => i.status === 'CANCELLED').length;
+
+      setStats({
+        total_sos: incList.length,
+        active_sos: activeCount,
+        resolved_sos: resolvedCount,
+        cancelled_sos: cancelledCount,
+      });
+
       const alertPending = incList.find(i =>
         !dismissedAlertIds.includes(String(i.id)) &&
         (i.status === 'PENDING' || i.status === 'ESCALATING' || i.status === 'UNRESPONDED') &&
@@ -104,10 +115,13 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
 
   const handleAccept = async (id: string) => {
     try {
+      if (id) {
+        setDismissedAlertIds(prev => [...prev, String(id)]);
+      }
+      setActiveAlert(null);
       const res = await emergencyAPI.acceptIncident(id);
       if (res.data.success) {
         Alert.alert("Emergency Accepted!", "You are assigned as emergency responder.");
-        setActiveAlert(null);
         loadData();
         navigation.navigate('EmergencyChat', { incidentId: id });
       }
