@@ -85,31 +85,9 @@ class EmergencyIncidentViewSet(viewsets.ReadOnlyModelViewSet):
         ]
 
         # For Responders: filter relevant incidents based on current escalation stage and assignments
-        if user.role == UserRole.GUARDIAN:
-            protected_ids = user.protected_residents.values_list('resident_id', flat=True)
+        if user.role in [UserRole.GUARDIAN, UserRole.SOCIETY_MEMBER, UserRole.SECURITY, UserRole.VOLUNTEER]:
             return qs.filter(
-                Q(resident_id__in=protected_ids, current_stage__in=community_stages, status__in=active_escalating) |
-                Q(accepted_by=user) | Q(responders__user=user)
-            ).distinct()
-
-        elif user.role in [UserRole.SOCIETY_MEMBER, UserRole.SECURITY, UserRole.VOLUNTEER]:
-            society = get_resident_society(user)
-            soc_res_ids = set()
-            if society:
-                soc_res_ids.update(User.objects.filter(
-                    flat_mappings__flat__block__society=society
-                ).values_list('id', flat=True))
-                soc_res_ids.update(UserSocietyAssignment.objects.filter(
-                    society=society
-                ).values_list('user_id', flat=True))
-            if soc_res_ids:
-                return qs.filter(
-                    Q(resident_id__in=soc_res_ids, current_stage__in=community_stages, status__in=active_escalating) |
-                    Q(current_stage__in=community_stages, status__in=active_escalating) |
-                    Q(accepted_by=user) | Q(responders__user=user)
-                ).distinct()
-            return qs.filter(
-                Q(current_stage__in=community_stages, status__in=active_escalating) |
+                Q(status__in=active_escalating) |
                 Q(accepted_by=user) | Q(responders__user=user)
             ).distinct()
 
