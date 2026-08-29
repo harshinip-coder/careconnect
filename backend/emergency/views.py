@@ -92,7 +92,7 @@ class EmergencyIncidentViewSet(viewsets.ReadOnlyModelViewSet):
                 Q(accepted_by=user) | Q(responders__user=user)
             ).distinct()
 
-        elif user.role == UserRole.SOCIETY_MEMBER:
+        elif user.role in [UserRole.SOCIETY_MEMBER, UserRole.SECURITY, UserRole.VOLUNTEER]:
             society = get_resident_society(user)
             soc_res_ids = set()
             if society:
@@ -105,46 +105,7 @@ class EmergencyIncidentViewSet(viewsets.ReadOnlyModelViewSet):
             if soc_res_ids:
                 return qs.filter(
                     Q(resident_id__in=soc_res_ids, current_stage__in=community_stages, status__in=active_escalating) |
-                    Q(accepted_by=user) | Q(responders__user=user)
-                ).distinct()
-            return qs.filter(
-                Q(current_stage__in=community_stages, status__in=active_escalating) |
-                Q(accepted_by=user) | Q(responders__user=user)
-            ).distinct()
-
-        elif user.role == UserRole.SECURITY:
-            society = get_resident_society(user)
-            soc_res_ids = set()
-            if society:
-                soc_res_ids.update(User.objects.filter(
-                    flat_mappings__flat__block__society=society
-                ).values_list('id', flat=True))
-                soc_res_ids.update(UserSocietyAssignment.objects.filter(
-                    society=society
-                ).values_list('user_id', flat=True))
-            if soc_res_ids:
-                return qs.filter(
-                    Q(resident_id__in=soc_res_ids, current_stage__in=community_stages, status__in=active_escalating) |
-                    Q(accepted_by=user) | Q(responders__user=user)
-                ).distinct()
-            return qs.filter(
-                Q(current_stage__in=community_stages, status__in=active_escalating) |
-                Q(accepted_by=user) | Q(responders__user=user)
-            ).distinct()
-
-        elif user.role == UserRole.VOLUNTEER:
-            society = get_resident_society(user)
-            soc_res_ids = set()
-            if society:
-                soc_res_ids.update(User.objects.filter(
-                    flat_mappings__flat__block__society=society
-                ).values_list('id', flat=True))
-                soc_res_ids.update(UserSocietyAssignment.objects.filter(
-                    society=society
-                ).values_list('user_id', flat=True))
-            if soc_res_ids:
-                return qs.filter(
-                    Q(resident_id__in=soc_res_ids, current_stage__in=community_stages, status__in=active_escalating) |
+                    Q(current_stage__in=community_stages, status__in=active_escalating) |
                     Q(accepted_by=user) | Q(responders__user=user)
                 ).distinct()
             return qs.filter(

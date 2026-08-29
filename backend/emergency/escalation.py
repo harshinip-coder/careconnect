@@ -25,6 +25,12 @@ STAGE_ORDER = [
 
 STAGE_TIMEOUT_SECONDS = 30
 
+def get_stage_timeout_seconds(stage):
+    """Return stage duration in seconds. Admin stage lasts 30 minutes (1800s)."""
+    if stage == EscalationStage.ADMIN:
+        return 1800
+    return STAGE_TIMEOUT_SECONDS
+
 def get_resident_society(resident):
     """Find the society associated with a resident."""
     mappings = ResidentFlatMapping.objects.filter(resident=resident, is_active=True).select_related('flat__block__society')
@@ -125,7 +131,8 @@ def start_escalation_stage(incident_id, stage):
             return  # Stop if resolved or cancelled or unresponded
 
         now = timezone.now()
-        deadline = now + timedelta(seconds=STAGE_TIMEOUT_SECONDS)
+        timeout_sec = get_stage_timeout_seconds(stage)
+        deadline = now + timedelta(seconds=timeout_sec)
 
         incident.current_stage = stage
         if incident.status == IncidentStatus.PENDING:
@@ -143,7 +150,7 @@ def start_escalation_stage(incident_id, stage):
         targets = get_target_users_for_stage(incident, stage)
         stage_display = dict(EscalationStage.choices).get(stage, stage)
         title = f"EMERGENCY ALERT ({stage_display})"
-        msg = f"Resident {incident.resident.get_full_name() or incident.resident.username} activated SOS in {incident.location_address or 'their flat'}. Category: {incident.category}. Please respond within 30s!"
+        msg = f"Resident {incident.resident.get_full_name() or incident.resident.username} activated SOS in {incident.location_address or 'their flat'}. Category: {incident.category}. Please respond!"
 
         for u in targets:
             Notification.objects.create(
@@ -156,7 +163,7 @@ def start_escalation_stage(incident_id, stage):
             )
 
     timer = threading.Timer(
-        STAGE_TIMEOUT_SECONDS + 0.5,
+        timeout_sec + 0.5,
         execute_timer_timeout,
         args=[incident_id, stage]
     )
