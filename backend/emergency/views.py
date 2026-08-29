@@ -232,8 +232,8 @@ class ResolveIncidentView(APIView):
         # Duplicate resolution check
         if incident.status == IncidentStatus.RESOLVED:
             return Response({"success": False, "message": "This emergency has already been resolved."}, status=status.HTTP_400_BAD_REQUEST)
-        if incident.status in [IncidentStatus.CANCELLED, IncidentStatus.UNRESPONDED]:
-            return Response({"success": False, "message": f"Cannot resolve an emergency with status {incident.status}."}, status=status.HTTP_400_BAD_REQUEST)
+        if incident.status == IncidentStatus.CANCELLED:
+            return Response({"success": False, "message": "Cannot resolve a cancelled emergency."}, status=status.HTTP_400_BAD_REQUEST)
 
         from users.models import VolunteerProfile
 
