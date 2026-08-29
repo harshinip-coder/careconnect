@@ -46,7 +46,8 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
 
       // 2. Fetch Incidents
       const incRes = await emergencyAPI.getIncidents();
-      const incList: EmergencyIncident[] = incRes.data.results || incRes.data.data || [];
+      const rawInc = incRes.data;
+      const incList: EmergencyIncident[] = Array.isArray(rawInc) ? rawInc : (rawInc?.results || rawInc?.data || []);
       setIncidents(incList);
 
       const alertPending = incList.find(i =>
@@ -57,15 +58,21 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
 
       // 3. Fetch Users
       const uRes = await adminAPI.getUsers();
-      setUsersList(uRes.data.results || uRes.data.data || []);
+      const rawUsers = uRes.data;
+      const uList = Array.isArray(rawUsers) ? rawUsers : (rawUsers?.results || rawUsers?.data || []);
+      setUsersList(uList);
 
       // 4. Fetch Societies
       const sRes = await adminAPI.getSocieties();
-      setSocieties(sRes.data.results || sRes.data.data || []);
+      const rawSoc = sRes.data;
+      const sList = Array.isArray(rawSoc) ? rawSoc : (rawSoc?.results || rawSoc?.data || []);
+      setSocieties(sList);
 
       // 5. Fetch Audit Logs
       const aRes = await adminAPI.getAuditLogs();
-      setAuditLogs(aRes.data.results || aRes.data.data || []);
+      const rawAudit = aRes.data;
+      const aList = Array.isArray(rawAudit) ? rawAudit : (rawAudit?.results || rawAudit?.data || []);
+      setAuditLogs(aList);
     } catch (err) {
       console.error('Error loading Admin Dashboard data:', err);
     }
