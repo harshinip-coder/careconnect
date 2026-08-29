@@ -37,16 +37,20 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
   const [newSocCity, setNewSocCity] = useState('');
 
   const loadData = async () => {
+    // 1. Fetch backend stats count
     try {
-      // 1. Fetch exact backend stats count
       const statsRes = await emergencyAPI.getStats();
-      if (statsRes.data.success) {
+      if (statsRes?.data?.success && statsRes?.data?.data) {
         setStats(statsRes.data.data);
       }
+    } catch (err) {
+      console.error('Error fetching emergency stats:', err);
+    }
 
-      // 2. Fetch Incidents
+    // 2. Fetch Incidents
+    try {
       const incRes = await emergencyAPI.getIncidents();
-      const rawInc = incRes.data;
+      const rawInc = incRes?.data;
       const incList: EmergencyIncident[] = Array.isArray(rawInc) ? rawInc : (rawInc?.results || rawInc?.data || []);
       setIncidents(incList);
 
@@ -55,26 +59,38 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
         (i.current_stage === 'ADMIN' || i.status === 'UNRESPONDED')
       );
       setActiveAlert(alertPending || null);
+    } catch (err) {
+      console.error('Error fetching incidents:', err);
+    }
 
-      // 3. Fetch Users
+    // 3. Fetch Users
+    try {
       const uRes = await adminAPI.getUsers();
-      const rawUsers = uRes.data;
+      const rawUsers = uRes?.data;
       const uList = Array.isArray(rawUsers) ? rawUsers : (rawUsers?.results || rawUsers?.data || []);
       setUsersList(uList);
+    } catch (err) {
+      console.error('Error fetching users list:', err);
+    }
 
-      // 4. Fetch Societies
+    // 4. Fetch Societies
+    try {
       const sRes = await adminAPI.getSocieties();
-      const rawSoc = sRes.data;
+      const rawSoc = sRes?.data;
       const sList = Array.isArray(rawSoc) ? rawSoc : (rawSoc?.results || rawSoc?.data || []);
       setSocieties(sList);
+    } catch (err) {
+      console.error('Error fetching societies list:', err);
+    }
 
-      // 5. Fetch Audit Logs
+    // 5. Fetch Audit Logs
+    try {
       const aRes = await adminAPI.getAuditLogs();
-      const rawAudit = aRes.data;
+      const rawAudit = aRes?.data;
       const aList = Array.isArray(rawAudit) ? rawAudit : (rawAudit?.results || rawAudit?.data || []);
       setAuditLogs(aList);
     } catch (err) {
-      console.error('Error loading Admin Dashboard data:', err);
+      console.error('Error fetching audit logs:', err);
     }
   };
 

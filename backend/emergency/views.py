@@ -168,7 +168,7 @@ class RequestBackupView(APIView):
     def stats(self, request):
         total_sos = EmergencyIncident.objects.count()
         active_sos = EmergencyIncident.objects.filter(status__in=[
-            IncidentStatus.PENDING, IncidentStatus.ESCALATING,
+            IncidentStatus.PENDING, IncidentStatus.ESCALATING, IncidentStatus.UNRESPONDED,
             IncidentStatus.RESPONDED, IncidentStatus.ACCEPTED, IncidentStatus.ACTIVE_RESPONSE
         ]).count()
         resolved_sos = EmergencyIncident.objects.filter(status=IncidentStatus.RESOLVED).count()
