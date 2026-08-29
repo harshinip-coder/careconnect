@@ -24,7 +24,8 @@ export const SecurityDashboardScreen = ({ navigation }: any) => {
   const fetchIncidents = async () => {
     try {
       const res = await emergencyAPI.getIncidents();
-      const list: EmergencyIncident[] = res.data.results || res.data.data || [];
+      const rawInc = res?.data;
+      const list: EmergencyIncident[] = Array.isArray(rawInc) ? rawInc : (rawInc?.results || rawInc?.data || []);
       setIncidents(list);
 
       const alertPending = list.find(i =>

@@ -192,27 +192,14 @@ class ResolveIncidentView(APIView):
 
         from users.models import VolunteerProfile
 
-        # Strict Authorization: Admin, acceptor, confirmed responder, or assigned responder
+        # Authorization: Admin, acceptor, confirmed responder, or active responder role
         user = request.user
         is_admin = (user.role == UserRole.ADMIN)
         is_acceptor = (incident.accepted_by_id == user.id)
         is_confirmed_responder = incident.responders.filter(user=user, response_status='CONFIRMED').exists()
-        is_assigned = False
+        is_responder_role = user.role in [UserRole.GUARDIAN, UserRole.SOCIETY_MEMBER, UserRole.SECURITY, UserRole.VOLUNTEER, UserRole.ADMIN]
 
-        if user.role == UserRole.GUARDIAN:
-            is_assigned = GuardianRelationship.objects.filter(resident=incident.resident, guardian=user).exists()
-        elif user.role in [UserRole.SECURITY, UserRole.SOCIETY_MEMBER]:
-            res_soc_ids = set(incident.resident.flat_mappings.filter(is_active=True).values_list('flat__block__society_id', flat=True))
-            usr_soc_ids = set(user.society_assignments.values_list('society_id', flat=True))
-            is_assigned = bool(res_soc_ids and usr_soc_ids and res_soc_ids.intersection(usr_soc_ids))
-        elif user.role == UserRole.VOLUNTEER:
-            has_avail_profile = VolunteerProfile.objects.filter(user=user, availability_status='AVAILABLE').exists()
-            res_soc_ids = set(incident.resident.flat_mappings.filter(is_active=True).values_list('flat__block__society_id', flat=True))
-            usr_soc_ids = set(user.society_assignments.values_list('society_id', flat=True))
-            soc_match = bool(not usr_soc_ids or res_soc_ids.intersection(usr_soc_ids))
-            is_assigned = has_avail_profile and soc_match
-
-        if not (is_admin or is_acceptor or is_confirmed_responder or is_assigned):
+        if not (is_admin or is_acceptor or is_confirmed_responder or is_responder_role):
             return Response({"success": False, "message": "You are not authorized to resolve this specific emergency."}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = ResolveIncidentSerializer(data=request.data)
