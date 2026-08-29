@@ -21,14 +21,16 @@ export const ResidentDashboardScreen = ({ navigation }: any) => {
   const [refreshing, setRefreshing] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
 
+  const [incidents, setIncidents] = useState<EmergencyIncident[]>([]);
+
   const fetchIncidents = async () => {
     try {
       const res = await emergencyAPI.getIncidents();
-      if (res.data.success || res.data.results) {
-        const incidents: EmergencyIncident[] = res.data.results || res.data.data || [];
-        const active = incidents.find(i => ['PENDING', 'ESCALATING', 'RESPONDED', 'ACCEPTED', 'ACTIVE_RESPONSE'].includes(i.status));
-        setActiveIncident(active || null);
-      }
+      const raw = res?.data;
+      const list: EmergencyIncident[] = Array.isArray(raw) ? raw : (raw?.results || raw?.data || []);
+      setIncidents(list);
+      const active = list.find(i => ['PENDING', 'ESCALATING', 'RESPONDED', 'ACCEPTED', 'ACTIVE_RESPONSE'].includes(i.status));
+      setActiveIncident(active || null);
     } catch (e) {
       console.error(e);
     }
@@ -147,7 +149,11 @@ export const ResidentDashboardScreen = ({ navigation }: any) => {
         <View style={styles.responderRow}>
           <Text style={styles.yellowDot}>⏳</Text>
           <Text style={styles.waitingStageText}>
-            {activeIncident.current_stage} stage active ({activeIncident.seconds_remaining}s remaining)
+            {['GUARDIAN', 'PRIMARY_GUARDIAN', 'SECONDARY_GUARDIAN'].includes(activeIncident.current_stage)
+              ? `Guardian (30s Window) stage active (${activeIncident.seconds_remaining}s remaining)`
+              : ['COMMUNITY', 'SOCIETY_MEMBER', 'SECURITY', 'VOLUNTEER'].includes(activeIncident.current_stage)
+              ? 'Community (Society, Security, Volunteers) broadcast active'
+              : `${activeIncident.current_stage} stage active`}
           </Text>
         </View>
       </View>
@@ -178,62 +184,121 @@ export const ResidentDashboardScreen = ({ navigation }: any) => {
         </View>
       </View>
 
-      {/* Main SOS / Active Emergency Area */}
-      {activeIncident ? (
-        <View style={styles.activeCard}>
-          <View style={styles.activeHeader}>
-            <Text style={styles.activeTitle}>🚨 SOS EMERGENCY ACTIVE</Text>
-            <Text style={styles.incidentNum}>#{activeIncident.incident_number}</Text>
-          </View>
+      {/* Main SOS Trigger Button Area - Always Available */}
+      <View style={styles.sosCard}>
+        <Text style={styles.sosCardTitle}>EMERGENCY ASSISTANCE</Text>
+        <Text style={styles.sosCardSubtitle}>
+          Press the SOS button below to trigger immediate emergency escalation across your contacts, guardians, security, and community.
+        </Text>
+        <SOSButton onTriggerSOS={handleTriggerSOS} isLoading={loading} />
+      </View>
 
-          <View style={styles.infoBox}>
-            <Text style={styles.infoText}>Status: <Text style={styles.boldText}>{activeIncident.status}</Text></Text>
-            <Text style={styles.infoText}>Current Stage: <Text style={styles.boldText}>{activeIncident.current_stage}</Text></Text>
-            <Text style={styles.infoText}>Location: {activeIncident.location_address}</Text>
-          </View>
-
-          {/* Responders Live List */}
-          {renderRespondersList()}
-
-          {/* Escalation Progress Tracker */}
-          <EscalationTracker
-            currentStage={activeIncident.current_stage}
-            history={activeIncident.escalation_history}
-            status={activeIncident.status}
-            acceptedBy={activeIncident.accepted_by_details?.full_name}
-            secondsRemaining={activeIncident.seconds_remaining}
-          />
-
-          {/* Live Location Map View Button */}
-          <TouchableOpacity
-            style={styles.mapBtn}
-            onPress={() => setShowMapModal(true)}
-          >
-            <Text style={styles.mapBtnText}>📍 VIEW LIVE LOCATION ON MAP</Text>
-          </TouchableOpacity>
-
-          {/* Chat with Responders */}
-          <TouchableOpacity
-            style={styles.chatBtn}
-            onPress={() => navigation.navigate('EmergencyChat', { incidentId: activeIncident.id })}
-          >
-            <Text style={styles.chatBtnText}>💬 OPEN SHARED EMERGENCY CHAT</Text>
-          </TouchableOpacity>
-
-          {/* Cancel SOS */}
-          <TouchableOpacity style={styles.cancelBtn} onPress={handleCancelSOS}>
-            <Text style={styles.cancelBtnText}>CANCEL SOS EMERGENCY</Text>
-          </TouchableOpacity>
+      {/* List of Resident's Emergency Incidents (Active, Unresponded, Resolved) */}
+      <Text style={[styles.responderSectionTitle, { marginTop: 16, marginBottom: 8 }]}>YOUR EMERGENCY ALERTS</Text>
+      {incidents.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyIcon}>🛡️</Text>
+          <Text style={styles.emptyTitle}>No Active Emergency Alerts</Text>
+          <Text style={styles.emptySub}>Your SOS alert history and status updates will appear here.</Text>
         </View>
       ) : (
-        <View style={styles.sosCard}>
-          <Text style={styles.sosCardTitle}>EMERGENCY ASSISTANCE</Text>
-          <Text style={styles.sosCardSubtitle}>
-            Press the SOS button below to trigger immediate emergency escalation across your contacts, guardians, security, and community.
-          </Text>
+        incidents.map(inc => {
+          const isActive = ['PENDING', 'ESCALATING', 'UNRESPONDED', 'RESPONDED', 'ACCEPTED', 'ACTIVE_RESPONSE'].includes(inc.status);
+          const isUnresponded = inc.status === 'UNRESPONDED';
+          const isResolved = inc.status === 'RESOLVED';
+          const isCancelled = inc.status === 'CANCELLED';
 
-          <SOSButton onTriggerSOS={handleTriggerSOS} isLoading={loading} />
-        </View>
+          return (
+            <View key={inc.id} style={styles.activeCard}>
+              <View style={styles.activeHeader}>
+                <Text style={styles.activeTitle}>
+                  {isUnresponded ? '⚠️ SOS UNRESPONDED' : isResolved ? '✓ SOS RESOLVED' : isCancelled ? '✕ SOS CANCELLED' : '🚨 SOS EMERGENCY ACTIVE'}
+                </Text>
+                <Text style={styles.incidentNum}>#{inc.incident_number}</Text>
+              </View>
+
+              <View style={styles.infoBox}>
+                <Text style={styles.infoText}>
+                  Status: <Text style={[styles.boldText, isUnresponded ? { color: '#EF4444' } : isResolved ? { color: '#10B981' } : { color: '#F59E0B' }]}>{inc.status}</Text>
+                </Text>
+                <Text style={styles.infoText}>Category: <Text style={styles.boldText}>{inc.category}</Text></Text>
+                <Text style={styles.infoText}>Current Stage: <Text style={styles.boldText}>{inc.current_stage}</Text></Text>
+                <Text style={styles.infoText}>Location: {inc.location_address}</Text>
+              </View>
+
+              {/* Responders Live List */}
+              {inc.responders && inc.responders.length > 0 ? (
+                <View style={styles.responderSectionCard}>
+                  <Text style={styles.responderSectionTitle}>EMERGENCY RESPONDERS</Text>
+                  {inc.responders.map(r => (
+                    <View key={r.id} style={styles.responderRow}>
+                      <Text style={styles.greenDot}>{r.response_status === 'CONFIRMED' ? '🟢' : '⚪'}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.responderName}>
+                          {r.user_details?.full_name || r.user_details?.username} ({r.role})
+                        </Text>
+                        <Text style={styles.responderStatusText}>Status: {r.response_status}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {/* Escalation Tracker */}
+              <EscalationTracker
+                currentStage={inc.current_stage}
+                history={inc.escalation_history}
+                status={inc.status}
+                acceptedBy={inc.accepted_by_details?.full_name}
+                secondsRemaining={inc.seconds_remaining}
+              />
+
+              {!isCancelled ? (
+                <View style={{ gap: 8, marginTop: 10 }}>
+                  <TouchableOpacity
+                    style={styles.mapBtn}
+                    onPress={() => setShowMapModal(true)}
+                  >
+                    <Text style={styles.mapBtnText}>📍 VIEW LIVE LOCATION ON MAP</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.chatBtn}
+                    onPress={() => navigation.navigate('EmergencyChat', { incidentId: inc.id })}
+                  >
+                    <Text style={styles.chatBtnText}>💬 OPEN SHARED EMERGENCY CHAT</Text>
+                  </TouchableOpacity>
+
+                  {isActive ? (
+                    <TouchableOpacity
+                      style={styles.cancelBtn}
+                      onPress={() => {
+                        Alert.alert('Cancel Emergency', 'Are you sure you want to cancel this active SOS emergency?', [
+                          { text: 'No', style: 'cancel' },
+                          {
+                            text: 'Yes, Cancel SOS',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                await emergencyAPI.cancelSOS(inc.id);
+                                Alert.alert('SOS Cancelled', 'Emergency incident has been cancelled.');
+                                fetchIncidents();
+                              } catch {
+                                Alert.alert('Error', 'Unable to cancel emergency.');
+                              }
+                            },
+                          },
+                        ]);
+                      }}
+                    >
+                      <Text style={styles.cancelBtnText}>CANCEL SOS EMERGENCY</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          );
+        })
       )}
 
       {/* Quick Action Navigation Buttons */}
