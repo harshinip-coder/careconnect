@@ -4,7 +4,7 @@ export type EmergencyCategory = 'MEDICAL' | 'FIRE' | 'SECURITY' | 'GENERAL';
 
 export type IncidentStatus = 'PENDING' | 'ESCALATING' | 'RESPONDED' | 'ACCEPTED' | 'ACTIVE_RESPONSE' | 'RESOLVED' | 'CANCELLED' | 'UNRESPONDED';
 
-export type EscalationStage = 'GUARDIAN' | 'PRIMARY_GUARDIAN' | 'SECONDARY_GUARDIAN' | 'SOCIETY_MEMBER' | 'SECURITY' | 'VOLUNTEER' | 'ADMIN' | 'COMPLETED';
+export type EscalationStage = 'GUARDIAN' | 'PRIMARY_GUARDIAN' | 'SECONDARY_GUARDIAN' | 'SOCIETY_MEMBER' | 'SECURITY' | 'VOLUNTEER' | 'ADMIN' | 'COMMUNITY' | 'COMPLETED';
 
 export type GuardianType = 'PRIMARY' | 'SECONDARY' | 'NONE';
 
@@ -72,6 +72,7 @@ export interface EmergencyIncident {
   current_stage: EscalationStage;
   response_deadline?: string;
   seconds_remaining: number;
+  has_requested_backup?: boolean;
   accepted_by?: number;
   accepted_by_details?: User | null;
   accepted_at?: string;

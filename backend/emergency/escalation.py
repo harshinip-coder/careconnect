@@ -23,6 +23,29 @@ STAGE_ORDER = [
     EscalationStage.ADMIN,
 ]
 
+STAGE_MAP = {
+    EscalationStage.GUARDIAN: EscalationStage.GUARDIAN,
+    EscalationStage.PRIMARY_GUARDIAN: EscalationStage.GUARDIAN,
+    EscalationStage.SECONDARY_GUARDIAN: EscalationStage.GUARDIAN,
+    EscalationStage.COMMUNITY: EscalationStage.COMMUNITY,
+    EscalationStage.SOCIETY_MEMBER: EscalationStage.COMMUNITY,
+    EscalationStage.SECURITY: EscalationStage.COMMUNITY,
+    EscalationStage.VOLUNTEER: EscalationStage.COMMUNITY,
+    EscalationStage.ADMIN: EscalationStage.ADMIN,
+}
+
+ACTIVE_TIMERS = {}
+
+def cancel_incident_timer(incident_id):
+    """Cancel any running background escalation timer for the given incident ID."""
+    incident_id_str = str(incident_id)
+    timer = ACTIVE_TIMERS.pop(incident_id_str, None)
+    if timer:
+        try:
+            timer.cancel()
+        except Exception as e:
+            logger.warning(f"Error cancelling timer for incident {incident_id_str}: {e}")
+
 STAGE_TIMEOUT_SECONDS = 30
 
 def get_stage_timeout_seconds(stage):
@@ -162,16 +185,20 @@ def start_escalation_stage(incident_id, stage):
                 stage=stage
             )
 
+    cancel_incident_timer(incident_id)
+
     timer = threading.Timer(
         timeout_sec + 0.5,
         execute_timer_timeout,
         args=[incident_id, stage]
     )
     timer.daemon = True
+    ACTIVE_TIMERS[str(incident_id)] = timer
     timer.start()
 
 def execute_timer_timeout(incident_id, expected_stage):
     """Executes background timeout check."""
+    ACTIVE_TIMERS.pop(str(incident_id), None)
     advance_escalation(incident_id, current_stage=expected_stage, reason='TIMEOUT')
 
 def advance_escalation(incident_id, current_stage, reason='TIMEOUT', responder=None):
@@ -186,11 +213,13 @@ def advance_escalation(incident_id, current_stage, reason='TIMEOUT', responder=N
         if incident.status in [IncidentStatus.RESOLVED, IncidentStatus.CANCELLED, IncidentStatus.UNRESPONDED]:
             return False
 
-        # If incident has already been responded to by a guardian and backup hasn't been requested, stop auto-escalating on timeout
+        # If incident has already been responded to by a responder and backup hasn't been requested, stop auto-escalating on timeout
         if reason == 'TIMEOUT' and incident.status in [IncidentStatus.RESPONDED, IncidentStatus.ACCEPTED, IncidentStatus.ACTIVE_RESPONSE] and not incident.has_requested_backup:
+            cancel_incident_timer(incident_id)
             return False
 
-        if incident.current_stage != current_stage:
+        normalized_stage = STAGE_MAP.get(current_stage, current_stage)
+        if incident.current_stage != current_stage and incident.current_stage != normalized_stage:
             return False
 
         now = timezone.now()
@@ -198,16 +227,21 @@ def advance_escalation(incident_id, current_stage, reason='TIMEOUT', responder=N
         history = EmergencyEscalation.objects.filter(
             incident=incident, stage=current_stage, status='PENDING'
         ).last()
+        if not history and normalized_stage != current_stage:
+            history = EmergencyEscalation.objects.filter(
+                incident=incident, stage=normalized_stage, status='PENDING'
+            ).last()
         if history:
             history.status = reason
             history.ended_at = now
             history.responded_by = responder
             history.save()
 
-        current_idx = STAGE_ORDER.index(current_stage) if current_stage in STAGE_ORDER else -1
+        current_idx = STAGE_ORDER.index(normalized_stage) if normalized_stage in STAGE_ORDER else -1
         if current_idx >= 0 and current_idx + 1 < len(STAGE_ORDER):
             next_stage = STAGE_ORDER[current_idx + 1]
         else:
+            cancel_incident_timer(incident_id)
             incident.current_stage = EscalationStage.COMPLETED
             if incident.status in [IncidentStatus.PENDING, IncidentStatus.ESCALATING] and not incident.responders.filter(response_status=ResponseStatus.CONFIRMED).exists():
                 incident.status = IncidentStatus.UNRESPONDED
@@ -303,6 +337,10 @@ def accept_emergency_incident(incident_id, responder):
         if incident.status in [IncidentStatus.PENDING, IncidentStatus.ESCALATING, IncidentStatus.UNRESPONDED]:
             incident.status = IncidentStatus.RESPONDED
         incident.save()
+
+        # Cancel auto-escalation timer unless secondary backup is requested
+        if not incident.has_requested_backup:
+            cancel_incident_timer(incident_id)
 
         # Post system message to shared chat thread
         chat, _ = IncidentChat.objects.get_or_create(incident=incident)

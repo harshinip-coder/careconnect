@@ -20,8 +20,7 @@ export const SocietyDashboardScreen = ({ navigation }: any) => {
   const fetchIncidents = async () => {
     try {
       const res = await emergencyAPI.getIncidents();
-      const rawInc = res?.data;
-      const list: EmergencyIncident[] = Array.isArray(rawInc) ? rawInc : (rawInc?.results || rawInc?.data || []);
+      const list: EmergencyIncident[] = res.data.results || res.data.data || [];
       setIncidents(list);
 
       const alertPending = list.find(i =>

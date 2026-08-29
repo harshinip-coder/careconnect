@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet, ActivityIndicator } from 'react-native';
-import { EmergencyIncident } from '../types';
+import { EmergencyIncident, EscalationStage } from '../types';
 
 interface EmergencyAlertModalProps {
   incident: EmergencyIncident | null;
@@ -16,27 +16,48 @@ export const EmergencyAlertModal: React.FC<EmergencyAlertModalProps> = ({
   onDismiss,
 }) => {
   const [loadingAction, setLoadingAction] = useState<'accept' | 'decline' | null>(null);
-  const [seconds, setSeconds] = useState(30);
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(0);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!incident) return;
-    setSeconds(incident.seconds_remaining || 30);
+    const calculateSeconds = () => {
+      if (incident.response_deadline && (incident.status === 'PENDING' || incident.status === 'ESCALATING')) {
+        const deadlineTime = new Date(incident.response_deadline).getTime();
+        const now = Date.now();
+        const diff = Math.max(0, Math.floor((deadlineTime - now) / 1000));
+        setSecondsRemaining(diff);
+      } else {
+        setSecondsRemaining(incident.seconds_remaining || 0);
+      }
+    };
 
-    const timer = setInterval(() => {
-      setSeconds(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          onDismiss();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
+    calculateSeconds();
+    const interval = setInterval(calculateSeconds, 1000);
+    return () => clearInterval(interval);
   }, [incident]);
 
   if (!incident) return null;
+
+  const getAudienceLabel = (stage: EscalationStage) => {
+    switch (stage) {
+      case 'GUARDIAN':
+      case 'PRIMARY_GUARDIAN':
+      case 'SECONDARY_GUARDIAN':
+        return 'Guardians';
+      case 'SOCIETY_MEMBER':
+        return 'Society Members';
+      case 'SECURITY':
+        return 'Security Personnel';
+      case 'VOLUNTEER':
+        return 'Volunteers';
+      case 'COMMUNITY':
+        return 'Community (Society, Security, Volunteers)';
+      case 'ADMIN':
+        return 'System Admin';
+      default:
+        return 'Emergency Network';
+    }
+  };
 
   const handleAccept = async () => {
     setLoadingAction('accept');
@@ -62,10 +83,14 @@ export const EmergencyAlertModal: React.FC<EmergencyAlertModalProps> = ({
         <View style={styles.alertCard}>
           <View style={styles.headerBanner}>
             <Text style={styles.headerTitle}>🚨 EMERGENCY ALERT</Text>
-            <Text style={styles.headerStage}>{incident.current_stage.replace('_', ' ')}</Text>
+            <Text style={styles.headerStage}>{getAudienceLabel(incident.current_stage).toUpperCase()}</Text>
           </View>
 
           <View style={styles.body}>
+            <View style={styles.audienceBox}>
+              <Text style={styles.audienceText}>Target: {getAudienceLabel(incident.current_stage)}</Text>
+            </View>
+
             <Text style={styles.residentName}>
               Resident: {incident.resident_details?.full_name || 'Resident'}
             </Text>
@@ -79,12 +104,19 @@ export const EmergencyAlertModal: React.FC<EmergencyAlertModalProps> = ({
               </View>
             ) : null}
 
-            {/* Countdown timer */}
+            {/* Countdown timer container */}
             <View style={styles.timerContainer}>
-              <Text style={styles.timerLabel}>RESPONSE TIME REMAINING</Text>
-              <Text style={styles.timerValue}>00:{seconds < 10 ? `0${seconds}` : seconds}</Text>
+              <Text style={styles.timerLabel}>STAGE RESPONSE WINDOW</Text>
+              <Text style={styles.timerValue}>
+                {secondsRemaining > 0 ? `${secondsRemaining}s` : 'Window Complete (Accept Available)'}
+              </Text>
               <View style={styles.progressBarBg}>
-                <View style={[styles.progressBarFill, { width: `${(seconds / 30) * 100}%` }]} />
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    { width: `${Math.min(100, Math.max(0, (secondsRemaining / 30) * 100))}%` },
+                  ]}
+                />
               </View>
             </View>
 
@@ -156,6 +188,21 @@ const styles = StyleSheet.create({
   },
   body: {
     padding: 20,
+  },
+  audienceBox: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  audienceText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#DC2626',
   },
   residentName: {
     fontSize: 18,

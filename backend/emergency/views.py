@@ -9,7 +9,7 @@ from django.db.models import Q
 from emergency.models import EmergencyIncident, IncidentStatus, EscalationStage
 from emergency.serializers import EmergencyIncidentSerializer, CreateSOSSerializer, ResolveIncidentSerializer
 from emergency.escalation import (
-    start_escalation_stage, accept_emergency_incident, decline_emergency_incident, get_resident_society
+    start_escalation_stage, accept_emergency_incident, decline_emergency_incident, get_resident_society, cancel_incident_timer
 )
 from users.models import UserRole
 from users.permissions import IsResidentRole, IsAnyResponderRole, IsAdminRole
@@ -192,14 +192,27 @@ class ResolveIncidentView(APIView):
 
         from users.models import VolunteerProfile
 
-        # Authorization: Admin, acceptor, confirmed responder, or active responder role
+        # Strict Authorization: Admin, acceptor, confirmed responder, or assigned responder
         user = request.user
         is_admin = (user.role == UserRole.ADMIN)
         is_acceptor = (incident.accepted_by_id == user.id)
         is_confirmed_responder = incident.responders.filter(user=user, response_status='CONFIRMED').exists()
-        is_responder_role = user.role in [UserRole.GUARDIAN, UserRole.SOCIETY_MEMBER, UserRole.SECURITY, UserRole.VOLUNTEER, UserRole.ADMIN]
+        is_assigned = False
 
-        if not (is_admin or is_acceptor or is_confirmed_responder or is_responder_role):
+        if user.role == UserRole.GUARDIAN:
+            is_assigned = GuardianRelationship.objects.filter(resident=incident.resident, guardian=user).exists()
+        elif user.role in [UserRole.SECURITY, UserRole.SOCIETY_MEMBER]:
+            res_soc_ids = set(incident.resident.flat_mappings.filter(is_active=True).values_list('flat__block__society_id', flat=True))
+            usr_soc_ids = set(user.society_assignments.values_list('society_id', flat=True))
+            is_assigned = bool(res_soc_ids and usr_soc_ids and res_soc_ids.intersection(usr_soc_ids))
+        elif user.role == UserRole.VOLUNTEER:
+            has_avail_profile = VolunteerProfile.objects.filter(user=user, availability_status='AVAILABLE').exists()
+            res_soc_ids = set(incident.resident.flat_mappings.filter(is_active=True).values_list('flat__block__society_id', flat=True))
+            usr_soc_ids = set(user.society_assignments.values_list('society_id', flat=True))
+            soc_match = bool(not usr_soc_ids or res_soc_ids.intersection(usr_soc_ids))
+            is_assigned = has_avail_profile and soc_match
+
+        if not (is_admin or is_acceptor or is_confirmed_responder or is_assigned):
             return Response({"success": False, "message": "You are not authorized to resolve this specific emergency."}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = ResolveIncidentSerializer(data=request.data)
@@ -216,6 +229,8 @@ class ResolveIncidentView(APIView):
         incident.resolved_at = now
         incident.resolution_note = note
         incident.save()
+
+        cancel_incident_timer(pk)
 
         # 1. System Chat Message
         chat, _ = IncidentChat.objects.get_or_create(incident=incident)
@@ -257,6 +272,8 @@ class CancelSOSView(APIView):
 
         incident.status = IncidentStatus.CANCELLED
         incident.save()
+
+        cancel_incident_timer(pk)
 
         chat, _ = IncidentChat.objects.get_or_create(incident=incident)
         ChatMessage.objects.create(

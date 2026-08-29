@@ -151,3 +151,17 @@ class CareConnectMultiResponderTestCase(TestCase):
         self.assertTrue(self.incident.has_requested_backup)
         self.assertTrue(Notification.objects.filter(user=self.security_user, incident=self.incident).exists())
 
+    def test_substage_normalization_advances_to_community(self):
+        """Sub-stages like PRIMARY_GUARDIAN normalize to GUARDIAN and advance to COMMUNITY, not UNRESPONDED."""
+        start_escalation_stage(self.incident.id, EscalationStage.PRIMARY_GUARDIAN)
+        self.incident.refresh_from_db()
+        self.assertEqual(self.incident.current_stage, EscalationStage.PRIMARY_GUARDIAN)
+
+        # Advance escalation with sub-stage
+        succ = advance_escalation(self.incident.id, current_stage=EscalationStage.PRIMARY_GUARDIAN, reason='TIMEOUT')
+        self.assertTrue(succ)
+
+        self.incident.refresh_from_db()
+        self.assertEqual(self.incident.current_stage, EscalationStage.COMMUNITY)
+        self.assertNotEqual(self.incident.status, IncidentStatus.UNRESPONDED)
+

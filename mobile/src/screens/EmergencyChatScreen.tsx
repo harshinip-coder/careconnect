@@ -91,6 +91,31 @@ export const EmergencyChatScreen = ({ route, navigation }: any) => {
     }
   };
 
+  const handleRequestBackup = async () => {
+    Alert.alert(
+      'Request Community Backup',
+      'Are you sure you want to send emergency alerts to all society members, gate security, and volunteers?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Yes, Send Alert',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await emergencyAPI.requestBackup(incidentId);
+              if (res.data.success) {
+                Alert.alert('Backup Requested', 'Emergency alert broadcasted to society members, security, and volunteers!');
+                fetchChatAndIncident();
+              }
+            } catch (e: any) {
+              Alert.alert('Notice', e.response?.data?.message || 'Failed to request backup.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const isResolved = incident?.status === 'RESOLVED' || incident?.status === 'CANCELLED';
   const canResolve = !isResolved && (
     user?.role === 'ADMIN' ||
@@ -154,6 +179,14 @@ export const EmergencyChatScreen = ({ route, navigation }: any) => {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Need Additional Help Banner */}
+      {!isResolved && (
+        <TouchableOpacity style={styles.backupBanner} onPress={handleRequestBackup}>
+          <Text style={styles.backupBannerTitle}>🚨 NEED ADDITIONAL HELP?</Text>
+          <Text style={styles.backupBannerSub}>Tap to escalate and broadcast to Society Members, Security & Volunteers</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Resolved Banner Card */}
       {incident?.status === 'RESOLVED' && (
@@ -276,6 +309,9 @@ const styles = StyleSheet.create({
   resolvedBannerTitle: { color: '#065F46', fontWeight: '900', fontSize: 14, marginBottom: 2 },
   resolvedBannerText: { color: '#047857', fontSize: 12, marginBottom: 2 },
   resolvedBannerNote: { color: '#064E3B', fontSize: 12, fontStyle: 'italic', textAlign: 'center' },
+  backupBanner: { backgroundColor: '#FEE2E2', borderColor: '#EF4444', borderWidth: 1, padding: 10, marginHorizontal: 12, marginTop: 10, borderRadius: 8, alignItems: 'center' },
+  backupBannerTitle: { color: '#991B1B', fontWeight: '900', fontSize: 13 },
+  backupBannerSub: { color: '#B91C1C', fontSize: 11, textAlign: 'center', marginTop: 2 },
   loader: { flex: 1, justifyContent: 'center' },
   listContent: { padding: 16 },
   systemMsgCard: { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5', borderWidth: 1, padding: 10, borderRadius: 8, marginVertical: 8, alignItems: 'center' },

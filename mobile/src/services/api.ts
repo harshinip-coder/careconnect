@@ -2,7 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authStorage } from './authStorage';
 
-export const DEFAULT_API_BASE_URL = 'https://careconnect-backend-619g.onrender.com/api';
+export const DEFAULT_API_BASE_URL = 'https://careconnect-backend-6l9g.onrender.com/api';
 const SERVER_URL_KEY = 'careconnect_custom_api_url';
 
 let currentBaseUrl = DEFAULT_API_BASE_URL;
@@ -43,7 +43,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
     'Bypass-Tunnel-Reminder': 'true',
   },
-  timeout: 10000,
+  timeout: 30000,
 });
 
 // Initialize saved URL asynchronously
@@ -100,9 +100,10 @@ export const emergencyAPI = {
   getStats: () => api.get('/emergency/incidents/stats/'),
   getIncidentDetail: (id: string) => api.get(`/emergency/incidents/${id}/`),
   acceptIncident: (id: string) => api.post(`/emergency/incidents/${id}/accept/`),
-  declineIncident: (id: string) => api.post(`/emergency/incidents/${id}/decline/`),
+  declineIncident: (id: string, reason?: string) => api.post(`/emergency/incidents/${id}/decline/`, { decline_reason: reason }),
   resolveIncident: (id: string, data: { resolution_note: string }) => api.post(`/emergency/incidents/${id}/resolve/`, data),
   cancelSOS: (id: string) => api.post(`/emergency/incidents/${id}/cancel/`),
+  requestBackup: (id: string) => api.post(`/emergency/incidents/${id}/request_backup/`),
 };
 
 export const guardianAPI = {

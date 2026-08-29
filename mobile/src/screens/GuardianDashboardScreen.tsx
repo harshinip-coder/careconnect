@@ -25,15 +25,13 @@ export const GuardianDashboardScreen = ({ navigation }: any) => {
   const fetchIncidents = async () => {
     try {
       const res = await emergencyAPI.getIncidents();
-      const rawInc = res?.data;
-      const list: EmergencyIncident[] = Array.isArray(rawInc) ? rawInc : (rawInc?.results || rawInc?.data || []);
+      const list: EmergencyIncident[] = res.data.results || res.data.data || [];
       setIncidents(list);
 
-      // Check if there is an active alert waiting for guardian stage
+      // Check if there is an active alert waiting for guardian attention
       const alertPending = list.find(i =>
         !dismissedAlertIds.includes(String(i.id)) &&
-        (i.status === 'PENDING' || i.status === 'ESCALATING') &&
-        (i.current_stage === 'GUARDIAN' || i.current_stage === 'PRIMARY_GUARDIAN' || i.current_stage === 'SECONDARY_GUARDIAN')
+        (i.status === 'PENDING' || i.status === 'ESCALATING' || i.status === 'UNRESPONDED')
       );
       setActiveAlert(alertPending || null);
     } catch (e) {

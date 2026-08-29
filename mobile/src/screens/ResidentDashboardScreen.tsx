@@ -251,6 +251,7 @@ export const ResidentDashboardScreen = ({ navigation }: any) => {
                 status={inc.status}
                 acceptedBy={inc.accepted_by_details?.full_name}
                 secondsRemaining={inc.seconds_remaining}
+                responseDeadline={inc.response_deadline}
               />
 
               {!isCancelled ? (
