@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { emergencyAPI } from '../services/api';
 import { EmergencyIncident } from '../types';
@@ -15,6 +15,11 @@ export const SecurityDashboardScreen = ({ navigation }: any) => {
   const [showMapModal, setShowMapModal] = useState(false);
   const [selectedMapIncident, setSelectedMapIncident] = useState<EmergencyIncident | null>(null);
 
+  const [resolveModalVisible, setResolveModalVisible] = useState(false);
+  const [selectedResolveIncidentId, setSelectedResolveIncidentId] = useState<string | null>(null);
+  const [resolutionNote, setResolutionNote] = useState('');
+  const [resolving, setResolving] = useState(false);
+
   const fetchIncidents = async () => {
     try {
       const res = await emergencyAPI.getIncidents();
@@ -22,7 +27,8 @@ export const SecurityDashboardScreen = ({ navigation }: any) => {
       setIncidents(list);
 
       const alertPending = list.find(i =>
-        (i.status === 'PENDING' || i.status === 'ESCALATING') && i.current_stage === 'SECURITY'
+        (i.status === 'PENDING' || i.status === 'ESCALATING' || i.status === 'UNRESPONDED') &&
+        (i.current_stage === 'COMMUNITY' || i.current_stage === 'SECURITY' || i.current_stage === 'COMPLETED' || i.status === 'UNRESPONDED')
       );
       setActiveAlert(alertPending || null);
     } catch (e) {
@@ -60,26 +66,32 @@ export const SecurityDashboardScreen = ({ navigation }: any) => {
     }
   };
 
-  const handleResolve = async (id: string) => {
-    Alert.prompt(
-      "Resolve Incident",
-      "Enter resolution note:",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Resolve Emergency",
-          onPress: async (note?: string) => {
-            try {
-              await emergencyAPI.resolveIncident(id, { resolution_note: note || "Resolved by Security." });
-              Alert.alert("Resolved", "Incident marked as RESOLVED.");
-              fetchIncidents();
-            } catch (e: any) {
-              Alert.alert("Error", "Unable to resolve incident.");
-            }
-          }
-        }
-      ]
-    );
+  const handleResolveSubmit = async () => {
+    if (!selectedResolveIncidentId) return;
+    const trimmed = resolutionNote.trim();
+    if (trimmed.length < 5) {
+      Alert.alert('Required Note', 'Please provide a resolution note of at least 5 characters.');
+      return;
+    }
+
+    setResolving(true);
+    try {
+      const res = await emergencyAPI.resolveIncident(selectedResolveIncidentId, { resolution_note: trimmed });
+      if (res.data.success) {
+        setResolveModalVisible(false);
+        setSelectedResolveIncidentId(null);
+        setResolutionNote('');
+        Alert.alert('Success', 'Emergency incident has been marked as RESOLVED.');
+        fetchIncidents();
+      } else {
+        Alert.alert('Error', res.data.message || 'Failed to resolve emergency.');
+      }
+    } catch (e: any) {
+      Alert.alert('Notice', e.response?.data?.message || 'Failed to resolve emergency.');
+      setResolveModalVisible(false);
+    } finally {
+      setResolving(false);
+    }
   };
 
   return (
@@ -113,61 +125,133 @@ export const SecurityDashboardScreen = ({ navigation }: any) => {
           <Text style={styles.emptySub}>Security alerts will trigger if society members do not accept within 30s.</Text>
         </View>
       ) : (
-        incidents.map(inc => (
-          <View key={inc.id} style={styles.incCard}>
-            <View style={styles.incRow}>
-              <Text style={styles.incNum}>#{inc.incident_number}</Text>
-              <Text style={styles.statusBadge}>{inc.status}</Text>
-            </View>
-            <Text style={styles.incResident}>Resident: {inc.resident_details?.full_name}</Text>
-            <Text style={styles.incText}>Category: {inc.category}</Text>
-            <Text style={styles.incText}>Location: {inc.location_address}</Text>
+        incidents.map(inc => {
+          const isAcceptedByMe = inc.responders?.some(r => r.user === user?.id && (r.response_status === 'CONFIRMED' || r.response_status === 'RESPONDING')) || inc.accepted_by === user?.id;
+          const isDeclinedByMe = inc.responders?.some(r => r.user === user?.id && r.response_status === 'DECLINED');
 
-            <TouchableOpacity
-              style={{ backgroundColor: '#0D9488', paddingVertical: 10, borderRadius: 8, alignItems: 'center', marginTop: 10 }}
-              onPress={() => {
-                setSelectedMapIncident(inc);
-                setShowMapModal(true);
-              }}
-            >
-              <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>📍 VIEW LIVE LOCATION ON MAP</Text>
-            </TouchableOpacity>
+          return (
+            <View key={inc.id} style={styles.incCard}>
+              <View style={styles.incRow}>
+                <Text style={styles.incNum}>#{inc.incident_number}</Text>
+                <Text style={styles.statusBadge}>{inc.status}</Text>
+              </View>
+              <Text style={styles.incResident}>Resident: {inc.resident_details?.full_name || 'Resident'}</Text>
+              <Text style={styles.incText}>Category: {inc.category}</Text>
+              <Text style={styles.incText}>Location: {inc.location_address}</Text>
 
-            <View style={styles.actionRow}>
+              {isAcceptedByMe ? (
+                <View style={{ backgroundColor: '#DCFCE7', padding: 8, borderRadius: 6, marginVertical: 8 }}>
+                  <Text style={{ color: '#15803D', fontWeight: '800', fontSize: 13 }}>✓ YOU HAVE ACCEPTED THIS SOS</Text>
+                </View>
+              ) : null}
+
               {inc.status !== 'RESOLVED' && inc.status !== 'CANCELLED' ? (
-                <>
-                  {!inc.responders?.some(r => r.user === user?.id && (r.response_status === 'CONFIRMED' || r.response_status === 'RESPONDING')) && (
-                    <TouchableOpacity
-                      style={[styles.btn, { backgroundColor: '#16A34A' }]}
-                      onPress={() => handleAccept(inc.id)}
-                    >
-                      <Text style={styles.btnText}>✓ ACCEPT SOS</Text>
-                    </TouchableOpacity>
+                <View style={{ flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                  {!isAcceptedByMe && !isDeclinedByMe && (
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <TouchableOpacity
+                        style={{ flex: 1, backgroundColor: '#16A34A', paddingVertical: 10, borderRadius: 8, alignItems: 'center' }}
+                        onPress={() => handleAccept(inc.id)}
+                      >
+                        <Text style={{ color: '#FFF', fontWeight: '800' }}>✓ ACCEPT SOS</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={{ flex: 1, backgroundColor: '#DC2626', paddingVertical: 10, borderRadius: 8, alignItems: 'center' }}
+                        onPress={() => handleDecline(inc.id)}
+                      >
+                        <Text style={{ color: '#FFF', fontWeight: '800' }}>✕ DECLINE</Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
 
-                  {!inc.responders?.some(r => r.user === user?.id && r.response_status === 'DECLINED') && (
+                  {isAcceptedByMe && (
                     <TouchableOpacity
-                      style={[styles.btn, { backgroundColor: '#DC2626' }]}
-                      onPress={() => handleDecline(inc.id)}
+                      style={{ backgroundColor: '#10B981', paddingVertical: 12, borderRadius: 8, alignItems: 'center' }}
+                      onPress={() => {
+                        setSelectedResolveIncidentId(inc.id);
+                        setResolveModalVisible(true);
+                      }}
                     >
-                      <Text style={styles.btnText}>✕ DECLINE</Text>
+                      <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 13 }}>✓ MARK AS RESOLVED</Text>
                     </TouchableOpacity>
                   )}
-                </>
+                </View>
               ) : null}
 
               {inc.status !== 'CANCELLED' ? (
-                <TouchableOpacity
-                  style={[styles.btn, styles.btnChat]}
-                  onPress={() => navigation.navigate('EmergencyChat', { incidentId: inc.id })}
-                >
-                  <Text style={styles.btnText}>💬 CHAT & RESOLVE</Text>
-                </TouchableOpacity>
+                <>
+                  <TouchableOpacity
+                    style={{ backgroundColor: '#0D9488', paddingVertical: 10, borderRadius: 8, alignItems: 'center', marginTop: 8 }}
+                    onPress={() => {
+                      setSelectedMapIncident(inc);
+                      setShowMapModal(true);
+                    }}
+                  >
+                    <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>📍 VIEW LIVE LOCATION ON MAP</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.chatBtn}
+                    onPress={() => navigation.navigate('EmergencyChat', { incidentId: inc.id })}
+                  >
+                    <Text style={styles.chatBtnText}>💬 OPEN SHARED EMERGENCY CHAT</Text>
+                  </TouchableOpacity>
+                </>
               ) : null}
             </View>
-          </View>
-        ))
+          );
+        })
       )}
+
+      {/* Resolution Modal */}
+      <Modal
+        visible={resolveModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setResolveModalVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ width: '100%', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: '900', color: '#0F172A', marginBottom: 8, textAlign: 'center' }}>Resolve Emergency</Text>
+            <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 16, textAlign: 'center' }}>
+              Please provide a required summary note of how the emergency was resolved (min 5 characters).
+            </Text>
+
+            <TextInput
+              style={{ backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, padding: 12, fontSize: 14, textAlignVertical: 'top', height: 80, marginBottom: 16 }}
+              placeholder="e.g. Security responded. Resident is safe."
+              value={resolutionNote}
+              onChangeText={setResolutionNote}
+              multiline
+              numberOfLines={3}
+            />
+
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+              <TouchableOpacity
+                style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, marginRight: 8 }}
+                onPress={() => {
+                  setResolveModalVisible(false);
+                  setResolutionNote('');
+                }}
+              >
+                <Text style={{ color: '#64748B', fontWeight: '800', fontSize: 13 }}>CANCEL</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[{ backgroundColor: '#10B981', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }, (resolutionNote.trim().length < 5 || resolving) && { backgroundColor: '#9CA3AF' }]}
+                disabled={resolutionNote.trim().length < 5 || resolving}
+                onPress={handleResolveSubmit}
+              >
+                {resolving ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 13 }}>✓ RESOLVE</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <LocationMapModal
         visible={showMapModal}
