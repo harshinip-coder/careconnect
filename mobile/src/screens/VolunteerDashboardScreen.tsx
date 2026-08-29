@@ -12,6 +12,7 @@ export const VolunteerDashboardScreen = ({ navigation }: any) => {
   const { user, logout, refreshUser } = useAuth();
   const [incidents, setIncidents] = useState<EmergencyIncident[]>([]);
   const [activeAlert, setActiveAlert] = useState<EmergencyIncident | null>(null);
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>([]);
   const [isAvailable, setIsAvailable] = useState(user?.volunteer_availability !== 'UNAVAILABLE');
   const [loadingToggle, setLoadingToggle] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
@@ -29,6 +30,7 @@ export const VolunteerDashboardScreen = ({ navigation }: any) => {
       setIncidents(list);
 
       const alertPending = list.find(i =>
+        !dismissedAlertIds.includes(String(i.id)) &&
         (i.status === 'PENDING' || i.status === 'ESCALATING' || i.status === 'UNRESPONDED') &&
         (i.current_stage === 'COMMUNITY' || i.current_stage === 'VOLUNTEER' || i.current_stage === 'COMPLETED' || i.status === 'UNRESPONDED')
       );
@@ -42,7 +44,7 @@ export const VolunteerDashboardScreen = ({ navigation }: any) => {
     fetchIncidents();
     const interval = setInterval(fetchIncidents, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [dismissedAlertIds]);
 
   const handleToggleAvailability = async (value: boolean) => {
     setLoadingToggle(true);
@@ -62,10 +64,11 @@ export const VolunteerDashboardScreen = ({ navigation }: any) => {
 
   const handleAccept = async (id: string) => {
     try {
+      if (id) setDismissedAlertIds(prev => [...prev, String(id)]);
+      setActiveAlert(null);
       const res = await emergencyAPI.acceptIncident(id);
       if (res.data.success) {
         Alert.alert("Emergency Accepted!", "You are now responding as Community Volunteer.");
-        setActiveAlert(null);
         fetchIncidents();
         navigation.navigate('EmergencyChat', { incidentId: id });
       }
@@ -76,8 +79,9 @@ export const VolunteerDashboardScreen = ({ navigation }: any) => {
 
   const handleDecline = async (id: string) => {
     try {
-      await emergencyAPI.declineIncident(id);
+      if (id) setDismissedAlertIds(prev => [...prev, String(id)]);
       setActiveAlert(null);
+      await emergencyAPI.declineIncident(id);
       fetchIncidents();
     } catch (err: any) {
       Alert.alert("Decline Failed", err.response?.data?.message || err.message);
@@ -150,7 +154,10 @@ export const VolunteerDashboardScreen = ({ navigation }: any) => {
         incident={activeAlert}
         onAccept={handleAccept}
         onDecline={handleDecline}
-        onDismiss={() => setActiveAlert(null)}
+        onDismiss={() => {
+          if (activeAlert) setDismissedAlertIds(prev => [...prev, String(activeAlert.id)]);
+          setActiveAlert(null);
+        }}
       />
 
       <Text style={styles.sectionTitle}>VOLUNTEER EMERGENCY ALERTS</Text>

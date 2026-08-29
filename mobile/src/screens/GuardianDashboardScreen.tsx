@@ -12,6 +12,7 @@ export const GuardianDashboardScreen = ({ navigation }: any) => {
   const { user, logout } = useAuth();
   const [incidents, setIncidents] = useState<EmergencyIncident[]>([]);
   const [activeAlert, setActiveAlert] = useState<EmergencyIncident | null>(null);
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
   const [selectedMapIncident, setSelectedMapIncident] = useState<EmergencyIncident | null>(null);
@@ -29,6 +30,7 @@ export const GuardianDashboardScreen = ({ navigation }: any) => {
 
       // Check if there is an active alert waiting for guardian stage
       const alertPending = list.find(i =>
+        !dismissedAlertIds.includes(String(i.id)) &&
         (i.status === 'PENDING' || i.status === 'ESCALATING') &&
         (i.current_stage === 'GUARDIAN' || i.current_stage === 'PRIMARY_GUARDIAN' || i.current_stage === 'SECONDARY_GUARDIAN')
       );
@@ -42,14 +44,15 @@ export const GuardianDashboardScreen = ({ navigation }: any) => {
     fetchIncidents();
     const interval = setInterval(fetchIncidents, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [dismissedAlertIds]);
 
   const handleAccept = async (id: string) => {
     try {
+      if (id) setDismissedAlertIds(prev => [...prev, String(id)]);
+      setActiveAlert(null);
       const res = await emergencyAPI.acceptIncident(id);
       if (res.data.success) {
         Alert.alert("Emergency Accepted!", "You are now assigned as responder.");
-        setActiveAlert(null);
         fetchIncidents();
         navigation.navigate('EmergencyChat', { incidentId: id });
       }
@@ -60,8 +63,9 @@ export const GuardianDashboardScreen = ({ navigation }: any) => {
 
   const handleDecline = async (id: string) => {
     try {
-      await emergencyAPI.declineIncident(id);
+      if (id) setDismissedAlertIds(prev => [...prev, String(id)]);
       setActiveAlert(null);
+      await emergencyAPI.declineIncident(id);
       fetchIncidents();
     } catch (err: any) {
       Alert.alert("Decline Failed", err.response?.data?.message || err.message);
@@ -120,7 +124,10 @@ export const GuardianDashboardScreen = ({ navigation }: any) => {
         incident={activeAlert}
         onAccept={handleAccept}
         onDecline={handleDecline}
-        onDismiss={() => setActiveAlert(null)}
+        onDismiss={() => {
+          if (activeAlert) setDismissedAlertIds(prev => [...prev, String(activeAlert.id)]);
+          setActiveAlert(null);
+        }}
       />
 
       <Text style={styles.sectionTitle}>PROTECTED RESIDENT EMERGENCIES</Text>
