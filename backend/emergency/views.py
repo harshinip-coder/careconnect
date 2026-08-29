@@ -39,14 +39,15 @@ class CreateSOSView(APIView):
                 latitude=serializer.validated_data.get('latitude', 0.0),
                 longitude=serializer.validated_data.get('longitude', 0.0),
                 location_address=address,
-                status=IncidentStatus.PENDING
+                status=IncidentStatus.PENDING,
+                current_stage=EscalationStage.GUARDIAN
             )
 
             # Auto-create Chat instance
             IncidentChat.objects.create(incident=incident)
 
-            # Start Escalation at PRIMARY_GUARDIAN
-            start_escalation_stage(incident.id, EscalationStage.PRIMARY_GUARDIAN)
+            # Start Escalation at GUARDIAN stage
+            start_escalation_stage(incident.id, EscalationStage.GUARDIAN)
 
             log_action(request.user, "CREATE_SOS", target=f"Incident:{incident_number}")
 
@@ -73,30 +74,102 @@ class EmergencyIncidentViewSet(viewsets.ReadOnlyModelViewSet):
         if user.role == UserRole.RESIDENT:
             return qs.filter(resident=user)
 
-        active_statuses = [IncidentStatus.PENDING, IncidentStatus.ESCALATING]
+        active_escalating = [
+            IncidentStatus.PENDING, IncidentStatus.ESCALATING,
+            IncidentStatus.RESPONDED, IncidentStatus.ACCEPTED, IncidentStatus.ACTIVE_RESPONSE
+        ]
+        community_stages = [
+            EscalationStage.COMMUNITY, EscalationStage.GUARDIAN,
+            EscalationStage.SOCIETY_MEMBER, EscalationStage.SECURITY, EscalationStage.VOLUNTEER
+        ]
 
-        # For Responders: filter relevant incidents
+        # For Responders: filter relevant incidents based on current escalation stage and assignments
         if user.role == UserRole.GUARDIAN:
             protected_ids = user.protected_residents.values_list('resident_id', flat=True)
-            return qs.filter(Q(resident_id__in=protected_ids) | Q(accepted_by=user) | Q(status__in=active_statuses))
+            return qs.filter(
+                Q(resident_id__in=protected_ids, current_stage__in=community_stages, status__in=active_escalating) |
+                Q(accepted_by=user) | Q(responders__user=user)
+            ).distinct()
 
-        elif user.role in [UserRole.SOCIETY_MEMBER, UserRole.SECURITY, UserRole.VOLUNTEER]:
+        elif user.role == UserRole.SOCIETY_MEMBER:
             society = get_resident_society(user)
             if society:
                 soc_res_ids = User.objects.filter(
                     flat_mappings__flat__block__society=society
                 ).values_list('id', flat=True)
-                return qs.filter(Q(resident_id__in=soc_res_ids) | Q(accepted_by=user) | Q(status__in=active_statuses))
-            return qs.filter(Q(status__in=active_statuses) | Q(accepted_by=user))
+                return qs.filter(
+                    Q(resident_id__in=soc_res_ids, current_stage__in=community_stages, status__in=active_escalating) |
+                    Q(accepted_by=user) | Q(responders__user=user)
+                ).distinct()
+            return qs.filter(
+                Q(current_stage__in=community_stages, status__in=active_escalating) |
+                Q(accepted_by=user) | Q(responders__user=user)
+            ).distinct()
 
-        return qs.filter(accepted_by=user)
+        elif user.role == UserRole.SECURITY:
+            society = get_resident_society(user)
+            if society:
+                soc_res_ids = User.objects.filter(
+                    flat_mappings__flat__block__society=society
+                ).values_list('id', flat=True)
+                return qs.filter(
+                    Q(resident_id__in=soc_res_ids, current_stage__in=community_stages, status__in=active_escalating) |
+                    Q(accepted_by=user) | Q(responders__user=user)
+                ).distinct()
+            return qs.filter(
+                Q(current_stage__in=community_stages, status__in=active_escalating) |
+                Q(accepted_by=user) | Q(responders__user=user)
+            ).distinct()
+
+        elif user.role == UserRole.VOLUNTEER:
+            society = get_resident_society(user)
+            if society:
+                soc_res_ids = User.objects.filter(
+                    flat_mappings__flat__block__society=society
+                ).values_list('id', flat=True)
+                return qs.filter(
+                    Q(resident_id__in=soc_res_ids, current_stage__in=community_stages, status__in=active_escalating) |
+                    Q(accepted_by=user) | Q(responders__user=user)
+                ).distinct()
+            return qs.filter(
+                Q(current_stage__in=community_stages, status__in=active_escalating) |
+                Q(accepted_by=user) | Q(responders__user=user)
+            ).distinct()
+
+        return qs.filter(Q(accepted_by=user) | Q(responders__user=user)).distinct()
+
+class RequestBackupView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from django.shortcuts import get_object_or_404
+        from emergency.escalation import request_additional_backup
+        incident = get_object_or_404(EmergencyIncident, id=pk)
+        is_resident = (incident.resident == request.user)
+        is_responder = incident.responders.filter(user=request.user).exclude(response_status='DECLINED').exists() or (incident.accepted_by == request.user)
+        is_guardian = (request.user.role == UserRole.GUARDIAN)
+        is_admin = (request.user.role == UserRole.ADMIN)
+
+        if not (is_resident or is_responder or is_guardian or is_admin):
+            return Response({"success": False, "message": "Unauthorized to request backup for this incident."}, status=status.HTTP_403_FORBIDDEN)
+
+        success, message = request_additional_backup(pk, request.user)
+        if success:
+            log_action(request.user, "REQUEST_BACKUP", target=f"Incident:{pk}")
+            incident.refresh_from_db()
+            return Response({
+                "success": True,
+                "message": message,
+                "data": EmergencyIncidentSerializer(incident).data
+            })
+        return Response({"success": False, "message": message}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
         total_sos = EmergencyIncident.objects.count()
         active_sos = EmergencyIncident.objects.filter(status__in=[
             IncidentStatus.PENDING, IncidentStatus.ESCALATING,
-            IncidentStatus.ACCEPTED, IncidentStatus.ACTIVE_RESPONSE
+            IncidentStatus.RESPONDED, IncidentStatus.ACCEPTED, IncidentStatus.ACTIVE_RESPONSE
         ]).count()
         resolved_sos = EmergencyIncident.objects.filter(status=IncidentStatus.RESOLVED).count()
         cancelled_sos = EmergencyIncident.objects.filter(status=IncidentStatus.CANCELLED).count()
@@ -130,7 +203,8 @@ class DeclineIncidentView(APIView):
     permission_classes = [IsAnyResponderRole]
 
     def post(self, request, pk):
-        success, message = decline_emergency_incident(pk, request.user)
+        reason = request.data.get('decline_reason', '')
+        success, message = decline_emergency_incident(pk, request.user, reason=reason)
         if success:
             log_action(request.user, "DECLINE_EMERGENCY", target=f"Incident:{pk}")
             incident = EmergencyIncident.objects.get(id=pk)
@@ -163,10 +237,11 @@ class ResolveIncidentView(APIView):
 
         from users.models import VolunteerProfile
 
-        # Strict Authorization: Admin, acceptor, or actually assigned responder
+        # Strict Authorization: Admin, acceptor, confirmed responder, or assigned responder
         user = request.user
         is_admin = (user.role == UserRole.ADMIN)
         is_acceptor = (incident.accepted_by_id == user.id)
+        is_confirmed_responder = incident.responders.filter(user=user, response_status='CONFIRMED').exists()
         is_assigned = False
 
         if user.role == UserRole.GUARDIAN:
@@ -182,7 +257,7 @@ class ResolveIncidentView(APIView):
             soc_match = bool(not usr_soc_ids or res_soc_ids.intersection(usr_soc_ids))
             is_assigned = has_avail_profile and soc_match
 
-        if not (is_admin or is_acceptor or is_assigned):
+        if not (is_admin or is_acceptor or is_confirmed_responder or is_assigned):
             return Response({"success": False, "message": "You are not authorized to resolve this specific emergency."}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = ResolveIncidentSerializer(data=request.data)
@@ -254,3 +329,4 @@ class CancelSOSView(APIView):
             "message": "Emergency SOS cancelled successfully",
             "data": EmergencyIncidentSerializer(incident).data
         })
+

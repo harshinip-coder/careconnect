@@ -12,6 +12,7 @@ class EmergencyCategory(models.TextChoices):
 class IncidentStatus(models.TextChoices):
     PENDING = 'PENDING', 'Pending'
     ESCALATING = 'ESCALATING', 'Escalating'
+    RESPONDED = 'RESPONDED', 'Responded'
     ACCEPTED = 'ACCEPTED', 'Accepted'
     ACTIVE_RESPONSE = 'ACTIVE_RESPONSE', 'Active Response'
     RESOLVED = 'RESOLVED', 'Resolved'
@@ -19,13 +20,27 @@ class IncidentStatus(models.TextChoices):
     UNRESPONDED = 'UNRESPONDED', 'Unresponded'
 
 class EscalationStage(models.TextChoices):
+    GUARDIAN = 'GUARDIAN', 'Guardian'
     PRIMARY_GUARDIAN = 'PRIMARY_GUARDIAN', 'Primary Guardian'
     SECONDARY_GUARDIAN = 'SECONDARY_GUARDIAN', 'Secondary Guardian'
     SOCIETY_MEMBER = 'SOCIETY_MEMBER', 'Society Members'
     SECURITY = 'SECURITY', 'Security Personnel'
     VOLUNTEER = 'VOLUNTEER', 'Community Volunteers'
     ADMIN = 'ADMIN', 'System Admin'
+    COMMUNITY = 'COMMUNITY', 'Community (Society, Security, Volunteers)'
     COMPLETED = 'COMPLETED', 'Escalation Completed'
+
+class ResponseStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending'
+    CONFIRMED = 'CONFIRMED', 'Confirmed'
+    DECLINED = 'DECLINED', 'Declined'
+    RESPONDING = 'RESPONDING', 'Responding'
+    WITHDRAWN = 'WITHDRAWN', 'Withdrawn'
+
+class GuardianType(models.TextChoices):
+    PRIMARY = 'PRIMARY', 'Primary Guardian'
+    SECONDARY = 'SECONDARY', 'Secondary Guardian'
+    NONE = 'NONE', 'None'
 
 class EmergencyIncident(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -40,7 +55,7 @@ class EmergencyIncident(models.Model):
     
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     status = models.CharField(max_length=20, choices=IncidentStatus.choices, default=IncidentStatus.PENDING, db_index=True)
-    current_stage = models.CharField(max_length=30, choices=EscalationStage.choices, default=EscalationStage.PRIMARY_GUARDIAN, db_index=True)
+    current_stage = models.CharField(max_length=30, choices=EscalationStage.choices, default=EscalationStage.GUARDIAN, db_index=True)
     response_deadline = models.DateTimeField(null=True, blank=True, db_index=True)
     
     accepted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='incidents_accepted')
@@ -49,6 +64,7 @@ class EmergencyIncident(models.Model):
     resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='incidents_resolved')
     resolved_at = models.DateTimeField(null=True, blank=True)
     resolution_note = models.TextField(blank=True, default='')
+    has_requested_backup = models.BooleanField(default=False)
     
     escalation_started_at = models.DateTimeField(auto_now_add=True)
     escalation_completed_at = models.DateTimeField(null=True, blank=True)
@@ -59,6 +75,27 @@ class EmergencyIncident(models.Model):
 
     def __str__(self):
         return f"Incident {self.incident_number} - {self.resident.username} ({self.status})"
+
+class EmergencyResponder(models.Model):
+    incident = models.ForeignKey(EmergencyIncident, on_delete=models.CASCADE, related_name='responders')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='emergency_responses')
+    role = models.CharField(max_length=30)
+    guardian_type = models.CharField(max_length=20, choices=GuardianType.choices, default=GuardianType.NONE)
+    response_status = models.CharField(max_length=20, choices=ResponseStatus.choices, default=ResponseStatus.CONFIRMED)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    declined_at = models.DateTimeField(null=True, blank=True)
+    decline_reason = models.CharField(max_length=255, blank=True, default='')
+    joined_at = models.DateTimeField(auto_now_add=True)
+    is_lead = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'careconnect_emergency_responders'
+        unique_together = ('incident', 'user')
+        ordering = ['joined_at']
+
+    def __str__(self):
+        return f"{self.user.username} ({self.role}) - {self.response_status} for {self.incident.incident_number}"
 
 class EmergencyEscalation(models.Model):
     RESPONSE_ACTION_CHOICES = (

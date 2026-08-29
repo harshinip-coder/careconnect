@@ -2,7 +2,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 from emergency.views import (
     CreateSOSView, EmergencyIncidentViewSet, AcceptIncidentView,
-    DeclineIncidentView, ResolveIncidentView, CancelSOSView
+    DeclineIncidentView, ResolveIncidentView, CancelSOSView, RequestBackupView
 )
 
 router = DefaultRouter()
@@ -14,4 +14,5 @@ urlpatterns = [
     path('incidents/<uuid:pk>/decline/', DeclineIncidentView.as_view(), name='emergency-decline'),
     path('incidents/<uuid:pk>/resolve/', ResolveIncidentView.as_view(), name='emergency-resolve'),
     path('incidents/<uuid:pk>/cancel/', CancelSOSView.as_view(), name='emergency-cancel'),
+    path('incidents/<uuid:pk>/request_backup/', RequestBackupView.as_view(), name='emergency-request-backup'),
 ] + router.urls

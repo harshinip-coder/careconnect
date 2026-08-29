@@ -90,8 +90,20 @@ class LoginView(APIView):
             if not u:
                 u = User.objects.filter(username__iexact=username_or_email).first()
 
-        if not u:
-            role = UserRole.ADMIN if 'admin' in username_or_email.lower() else UserRole.RESIDENT
+            uname_lower = username_or_email.lower()
+            if 'admin' in uname_lower:
+                role = UserRole.ADMIN
+            elif 'guardian' in uname_lower:
+                role = UserRole.GUARDIAN
+            elif 'security' in uname_lower:
+                role = UserRole.SECURITY
+            elif 'volunteer' in uname_lower:
+                role = UserRole.VOLUNTEER
+            elif 'society' in uname_lower:
+                role = UserRole.SOCIETY_MEMBER
+            else:
+                role = UserRole.RESIDENT
+
             u = User.objects.create(
                 username=username_or_email,
                 email=f"{username_or_email}@test.com" if '@' not in username_or_email else username_or_email,

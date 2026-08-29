@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from users.models import UserRole, GuardianRelationship, VolunteerProfile
 from society.models import Society, Block, Flat, ResidentFlatMapping, UserSocietyAssignment
-from emergency.models import EmergencyIncident, IncidentStatus, EscalationStage, EmergencyEscalation
+from emergency.models import EmergencyIncident, IncidentStatus, EscalationStage, EmergencyEscalation, EmergencyResponder, ResponseStatus, GuardianType
 from emergency.escalation import (
     start_escalation_stage, advance_escalation, accept_emergency_incident, decline_emergency_incident
 )
@@ -13,7 +13,7 @@ from notifications.models import Notification, NotificationType
 
 User = get_user_model()
 
-class CareConnectEscalationTestCase(TestCase):
+class CareConnectMultiResponderTestCase(TestCase):
     def setUp(self):
         # Create Society, Block, Flat
         self.society = Society.objects.create(name="Test Society", city="Test City")
@@ -50,57 +50,62 @@ class CareConnectEscalationTestCase(TestCase):
             resident=self.resident,
             category="MEDICAL",
             message="Test Emergency SOS",
-            status=IncidentStatus.PENDING
+            status=IncidentStatus.PENDING,
+            current_stage=EscalationStage.GUARDIAN
         )
 
-    def test_scenario_1_primary_guardian_accepts(self):
-        """Scenario 1: Primary Guardian accepts -> Escalation stops immediately."""
-        start_escalation_stage(self.incident.id, EscalationStage.PRIMARY_GUARDIAN)
-        
-        # Verify notification sent to Primary Guardian
+    def test_guardian_stage_notifies_both_primary_and_secondary(self):
+        """Guardian stage notifies BOTH Primary and Secondary Guardians simultaneously."""
+        start_escalation_stage(self.incident.id, EscalationStage.GUARDIAN)
+
+        # Verify notification sent to both Primary and Secondary Guardians
         self.assertTrue(Notification.objects.filter(user=self.primary_g, incident=self.incident).exists())
-
-        # Primary accepts
-        success, msg = accept_emergency_incident(self.incident.id, self.primary_g)
-        self.assertTrue(success)
-
-        self.incident.refresh_from_db()
-        self.assertEqual(self.incident.status, IncidentStatus.ACCEPTED)
-        self.assertEqual(self.incident.accepted_by, self.primary_g)
-
-        # Verify Secondary Guardian and downstream roles NOT notified
-        self.assertFalse(Notification.objects.filter(user=self.secondary_g, incident=self.incident).exists())
-        self.assertFalse(Notification.objects.filter(user=self.security_user, incident=self.incident).exists())
-
-    def test_scenario_2_primary_declines_advances_to_secondary(self):
-        """Scenario 2: Primary declines -> Escalates to Secondary Guardian."""
-        start_escalation_stage(self.incident.id, EscalationStage.PRIMARY_GUARDIAN)
-        
-        success, msg = decline_emergency_incident(self.incident.id, self.primary_g)
-        self.assertTrue(success)
-
-        self.incident.refresh_from_db()
-        self.assertEqual(self.incident.current_stage, EscalationStage.SECONDARY_GUARDIAN)
         self.assertTrue(Notification.objects.filter(user=self.secondary_g, incident=self.incident).exists())
 
-    def test_scenario_3_primary_timeout_advances_to_secondary(self):
-        """Scenario 3: Primary timeout -> Escalates to Secondary Guardian."""
-        start_escalation_stage(self.incident.id, EscalationStage.PRIMARY_GUARDIAN)
+    def test_multi_responder_confirmations(self):
+        """Multiple responders across roles can confirm the SAME SOS incident."""
+        start_escalation_stage(self.incident.id, EscalationStage.GUARDIAN)
 
-        # Force advance due to TIMEOUT
-        advance_escalation(self.incident.id, current_stage=EscalationStage.PRIMARY_GUARDIAN, reason='TIMEOUT')
+        # Primary accepts
+        succ1, msg1 = accept_emergency_incident(self.incident.id, self.primary_g)
+        self.assertTrue(succ1)
+
+        # Security accepts
+        succ2, msg2 = accept_emergency_incident(self.incident.id, self.security_user)
+        self.assertTrue(succ2)
+
+        # Volunteer accepts
+        succ3, msg3 = accept_emergency_incident(self.incident.id, self.volunteer_user)
+        self.assertTrue(succ3)
 
         self.incident.refresh_from_db()
-        self.assertEqual(self.incident.current_stage, EscalationStage.SECONDARY_GUARDIAN)
+        responders = self.incident.responders.filter(response_status=ResponseStatus.CONFIRMED)
+        self.assertEqual(responders.count(), 3)
 
-    def test_scenario_4_to_8_full_escalation_to_unresponded(self):
-        """Scenarios 4-8: Escalates through all stages until UNRESPONDED."""
+        # Verify lead responder is Primary Guardian
+        lead_resp = self.incident.responders.get(is_lead=True)
+        self.assertEqual(lead_resp.user, self.primary_g)
+        self.assertEqual(lead_resp.guardian_type, GuardianType.PRIMARY)
+
+    def test_responder_decline_does_not_cancel_sos(self):
+        """Declining records response_status=DECLINED and does NOT cancel SOS or stop escalation."""
+        start_escalation_stage(self.incident.id, EscalationStage.GUARDIAN)
+
+        succ, msg = decline_emergency_incident(self.incident.id, self.secondary_g, reason="Busy")
+        self.assertTrue(succ)
+
+        self.incident.refresh_from_db()
+        self.assertNotEqual(self.incident.status, IncidentStatus.CANCELLED)
+
+        declined_resp = self.incident.responders.get(user=self.secondary_g)
+        self.assertEqual(declined_resp.response_status, ResponseStatus.DECLINED)
+        self.assertEqual(declined_resp.decline_reason, "Busy")
+
+    def test_full_escalation_chain(self):
+        """Escalates through GUARDIAN -> COMMUNITY -> ADMIN -> UNRESPONDED."""
         stages = [
-            EscalationStage.PRIMARY_GUARDIAN,
-            EscalationStage.SECONDARY_GUARDIAN,
-            EscalationStage.SOCIETY_MEMBER,
-            EscalationStage.SECURITY,
-            EscalationStage.VOLUNTEER,
+            EscalationStage.GUARDIAN,
+            EscalationStage.COMMUNITY,
             EscalationStage.ADMIN,
         ]
 
@@ -108,21 +113,41 @@ class CareConnectEscalationTestCase(TestCase):
             start_escalation_stage(self.incident.id, stage)
             self.incident.refresh_from_db()
             self.assertEqual(self.incident.current_stage, stage)
-            advance_escalation(self.incident.id, current_stage=stage, reason='DECLINED')
+            advance_escalation(self.incident.id, current_stage=stage, reason='TIMEOUT')
 
         self.incident.refresh_from_db()
         self.assertEqual(self.incident.status, IncidentStatus.UNRESPONDED)
         self.assertEqual(self.incident.current_stage, EscalationStage.COMPLETED)
 
-    def test_race_condition_double_accept_prevention(self):
-        """Test race condition: Second accept attempt is rejected."""
-        start_escalation_stage(self.incident.id, EscalationStage.PRIMARY_GUARDIAN)
+    def test_guardian_can_accept_after_timeout(self):
+        """Guardians retain full eligibility to accept SOS even after 30s timeout moves stage to COMMUNITY."""
+        start_escalation_stage(self.incident.id, EscalationStage.GUARDIAN)
+        advance_escalation(self.incident.id, current_stage=EscalationStage.GUARDIAN, reason='TIMEOUT')
 
-        # Primary accepts
-        succ1, msg1 = accept_emergency_incident(self.incident.id, self.primary_g)
-        self.assertTrue(succ1)
+        self.incident.refresh_from_db()
+        self.assertEqual(self.incident.current_stage, EscalationStage.COMMUNITY)
 
-        # Security tries to accept simultaneously
-        succ2, msg2 = accept_emergency_incident(self.incident.id, self.security_user)
-        self.assertFalse(succ2)
-        self.assertIn("already been accepted", msg2)
+        # Primary Guardian accepts during COMMUNITY stage after timeout
+        succ, msg = accept_emergency_incident(self.incident.id, self.primary_g)
+        self.assertTrue(succ)
+
+        self.incident.refresh_from_db()
+        self.assertEqual(self.incident.status, IncidentStatus.RESPONDED)
+        self.assertTrue(self.incident.responders.filter(user=self.primary_g, response_status=ResponseStatus.CONFIRMED).exists())
+
+    def test_request_additional_backup_escalates_to_community(self):
+        """Guardian accepts, then triggers request_additional_backup to notify community."""
+        from emergency.escalation import request_additional_backup
+        start_escalation_stage(self.incident.id, EscalationStage.GUARDIAN)
+
+        succ_acc, _ = accept_emergency_incident(self.incident.id, self.primary_g)
+        self.assertTrue(succ_acc)
+
+        succ_req, msg_req = request_additional_backup(self.incident.id, self.primary_g)
+        self.assertTrue(succ_req)
+
+        self.incident.refresh_from_db()
+        self.assertEqual(self.incident.current_stage, EscalationStage.COMMUNITY)
+        self.assertTrue(self.incident.has_requested_backup)
+        self.assertTrue(Notification.objects.filter(user=self.security_user, incident=self.incident).exists())
+
