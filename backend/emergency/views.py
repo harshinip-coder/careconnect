@@ -70,7 +70,11 @@ class EmergencyIncidentViewSet(viewsets.ReadOnlyModelViewSet):
         qs = super().get_queryset()
 
         if user.role == UserRole.ADMIN or user.is_staff:
-            return qs
+            return qs.filter(
+                Q(current_stage__in=[EscalationStage.ADMIN, EscalationStage.COMPLETED]) |
+                Q(status__in=[IncidentStatus.UNRESPONDED, IncidentStatus.RESPONDED, IncidentStatus.ACCEPTED, IncidentStatus.ACTIVE_RESPONSE, IncidentStatus.RESOLVED, IncidentStatus.CANCELLED]) |
+                Q(accepted_by=user)
+            ).distinct()
 
         if user.role == UserRole.RESIDENT:
             return qs.filter(resident=user)

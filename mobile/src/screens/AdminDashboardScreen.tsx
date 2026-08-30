@@ -72,6 +72,7 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
 
       const alertPending = incList.find(i =>
         !currentDismissed.includes(String(i.id)) &&
+        !i.accepted_by &&
         (i.status === 'PENDING' || i.status === 'ESCALATING' || i.status === 'UNRESPONDED') &&
         (i.current_stage === 'ADMIN' || i.status === 'UNRESPONDED')
       );
