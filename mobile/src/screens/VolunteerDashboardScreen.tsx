@@ -23,16 +23,17 @@ export const VolunteerDashboardScreen = ({ navigation }: any) => {
   const [resolutionNote, setResolutionNote] = useState('');
   const [resolving, setResolving] = useState(false);
 
-  const fetchIncidents = async () => {
+  const fetchIncidents = async (dismissedIds = dismissedAlertIds) => {
     try {
       const res = await emergencyAPI.getIncidents();
-      const list: EmergencyIncident[] = res.data.results || res.data.data || [];
+      const raw = res?.data;
+      const list: EmergencyIncident[] = Array.isArray(raw) ? raw : (raw?.results || raw?.data || []);
       setIncidents(list);
 
-      const alertPending = list.find(i =>
-        !dismissedAlertIds.includes(String(i.id)) &&
+      const alertPending = isAvailable ? list.find(i =>
+        !dismissedIds.includes(String(i.id)) &&
         (i.status === 'PENDING' || i.status === 'ESCALATING' || i.status === 'UNRESPONDED')
-      );
+      ) : undefined;
       setActiveAlert(alertPending || null);
     } catch (e) {
       console.error(e);
@@ -43,7 +44,7 @@ export const VolunteerDashboardScreen = ({ navigation }: any) => {
     fetchIncidents();
     const interval = setInterval(fetchIncidents, 3000);
     return () => clearInterval(interval);
-  }, [dismissedAlertIds]);
+  }, [dismissedAlertIds, isAvailable]);
 
   const handleToggleAvailability = async (value: boolean) => {
     setLoadingToggle(true);
@@ -62,13 +63,14 @@ export const VolunteerDashboardScreen = ({ navigation }: any) => {
   };
 
   const handleAccept = async (id: string) => {
+    const updated = [...dismissedAlertIds, String(id)];
+    setDismissedAlertIds(updated);
+    setActiveAlert(null);
     try {
-      if (id) setDismissedAlertIds(prev => [...prev, String(id)]);
-      setActiveAlert(null);
       const res = await emergencyAPI.acceptIncident(id);
       if (res.data.success) {
         Alert.alert("Emergency Accepted!", "You are now responding as Community Volunteer.");
-        fetchIncidents();
+        fetchIncidents(updated);
         navigation.navigate('EmergencyChat', { incidentId: id });
       }
     } catch (err: any) {
@@ -77,11 +79,12 @@ export const VolunteerDashboardScreen = ({ navigation }: any) => {
   };
 
   const handleDecline = async (id: string) => {
+    const updated = [...dismissedAlertIds, String(id)];
+    setDismissedAlertIds(updated);
+    setActiveAlert(null);
     try {
-      if (id) setDismissedAlertIds(prev => [...prev, String(id)]);
-      setActiveAlert(null);
       await emergencyAPI.declineIncident(id);
-      fetchIncidents();
+      fetchIncidents(updated);
     } catch (err: any) {
       Alert.alert("Decline Failed", err.response?.data?.message || err.message);
     }

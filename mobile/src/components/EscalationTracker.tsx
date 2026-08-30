@@ -12,9 +12,10 @@ interface EscalationTrackerProps {
 }
 
 const STAGES: { stage: EscalationStage; label: string }[] = [
-  { stage: 'GUARDIAN', label: 'Guardian (30s)' },
-  { stage: 'COMMUNITY', label: 'Community (Society, Security, Volunteers)' },
-  { stage: 'ADMIN', label: 'System Admin Fallback' },
+  { stage: 'GUARDIAN', label: '1. Primary & Secondary Guardians (0-30s)' },
+  { stage: 'COMMUNITY', label: '2. Community Network (30-60s)' },
+  { stage: 'ADMIN', label: '3. System Admin Ops (60-120s)' },
+  { stage: 'COMPLETED', label: '4. Active Response Period (Up to 15 Mins)' },
 ];
 
 export const EscalationTracker: React.FC<EscalationTrackerProps> = ({
@@ -45,50 +46,15 @@ export const EscalationTracker: React.FC<EscalationTrackerProps> = ({
   }, [responseDeadline, initialSecondsRemaining, status]);
 
   const getStageState = (stageKey: EscalationStage) => {
-    // 1. If emergency has been accepted / responded to
     if (status === 'ACCEPTED' || status === 'RESPONDED' || status === 'ACTIVE_RESPONSE' || status === 'RESOLVED') {
-      const acceptedHist = history.find(h => h.status === 'ACCEPTED');
-      const isThisAcceptedStage = acceptedHist && (
-        acceptedHist.stage === stageKey ||
-        (stageKey === 'GUARDIAN' && (acceptedHist.stage === 'PRIMARY_GUARDIAN' || acceptedHist.stage === 'SECONDARY_GUARDIAN')) ||
-        (stageKey === 'COMMUNITY' && (acceptedHist.stage === 'SOCIETY_MEMBER' || acceptedHist.stage === 'SECURITY' || acceptedHist.stage === 'VOLUNTEER'))
-      );
-
-      if (isThisAcceptedStage || acceptedBy) {
-        // Find order of stages
-        const stageIndex = STAGES.findIndex(s => s.stage === stageKey);
-        // If Guardian is accepted, index 0 is accepted, 1 & 2 stopped
-        if (stageIndex === 0) {
-          return { icon: '✓', color: '#16A34A', statusText: `Accepted (${acceptedBy || 'Responder'})` };
-        } else if (stageIndex === 1) {
-          return { icon: '✓', color: '#16A34A', statusText: `Accepted (${acceptedBy || 'Responder'})` };
-        }
-      }
-      return { icon: '✓', color: '#6B7280', statusText: 'Escalation Stopped' };
+      return { icon: '✓', color: '#16A34A', statusText: `Accepted (${acceptedBy || 'Assigned Responder'})` };
     }
 
-    // 2. Check explicit history items
-    const stageHistoryItems = history.filter(h =>
-      h.stage === stageKey ||
-      (stageKey === 'GUARDIAN' && (h.stage === 'PRIMARY_GUARDIAN' || h.stage === 'SECONDARY_GUARDIAN')) ||
-      (stageKey === 'COMMUNITY' && (h.stage === 'SOCIETY_MEMBER' || h.stage === 'SECURITY' || h.stage === 'VOLUNTEER'))
-    );
-
-    if (stageHistoryItems.some(h => h.status === 'TIMEOUT')) {
-      return { icon: '✓', color: '#D97706', statusText: stageKey === 'GUARDIAN' ? 'Timeout (30s)' : 'Timeout' };
+    if (stageKey === 'COMPLETED' && currentStage === 'COMPLETED' && (status === 'PENDING' || status === 'ESCALATING')) {
+      return { icon: '●', color: '#10B981', statusText: 'Active — Open for all responders (15m window)' };
     }
 
-    // 3. Implicit timeout checks based on currentStage order
-    if (stageKey === 'GUARDIAN' && (currentStage === 'COMMUNITY' || currentStage === 'ADMIN' || currentStage === 'SOCIETY_MEMBER' || currentStage === 'SECURITY' || currentStage === 'VOLUNTEER')) {
-      return { icon: '✓', color: '#D97706', statusText: 'Timeout (30s)' };
-    }
-    if (stageKey === 'COMMUNITY' && currentStage === 'ADMIN') {
-      return { icon: '✓', color: '#D97706', statusText: 'Timeout' };
-    }
-
-    // 4. Current active stage check
-    const isCurrentActive =
-      (currentStage === stageKey) ||
+    const isCurrentActive = currentStage === stageKey ||
       (stageKey === 'GUARDIAN' && (currentStage === 'PRIMARY_GUARDIAN' || currentStage === 'SECONDARY_GUARDIAN')) ||
       (stageKey === 'COMMUNITY' && (currentStage === 'SOCIETY_MEMBER' || currentStage === 'SECURITY' || currentStage === 'VOLUNTEER'));
 
@@ -96,10 +62,16 @@ export const EscalationTracker: React.FC<EscalationTrackerProps> = ({
       return {
         icon: '●',
         color: '#2563EB',
-        statusText: stageKey === 'GUARDIAN'
-          ? `Active (${localSeconds > 0 ? `${localSeconds}s remaining` : '30s Window'})`
-          : `Active (Broadcasted${localSeconds > 0 ? ` - ${localSeconds}s remaining` : ''})`
+        statusText: `Active (${localSeconds > 0 ? `${localSeconds}s remaining in stage` : 'Stage Active'})`
       };
+    }
+
+    const stageOrder = ['GUARDIAN', 'COMMUNITY', 'ADMIN', 'COMPLETED'];
+    const currentIdx = stageOrder.indexOf(currentStage);
+    const itemIdx = stageOrder.indexOf(stageKey);
+
+    if (currentIdx > itemIdx) {
+      return { icon: '✓', color: '#059669', statusText: 'Stage complete — Escalated to next tier' };
     }
 
     return { icon: '○', color: '#9CA3AF', statusText: 'Pending' };

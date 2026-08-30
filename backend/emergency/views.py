@@ -40,7 +40,8 @@ class CreateSOSView(APIView):
                 longitude=serializer.validated_data.get('longitude', 0.0),
                 location_address=address,
                 status=IncidentStatus.PENDING,
-                current_stage=EscalationStage.GUARDIAN
+                current_stage=EscalationStage.GUARDIAN,
+                global_deadline=now + timedelta(minutes=15)
             )
 
             # Auto-create Chat instance
@@ -86,6 +87,22 @@ class EmergencyIncidentViewSet(viewsets.ReadOnlyModelViewSet):
 
         # For Responders: filter relevant incidents based on current escalation stage and assignments
         if user.role in [UserRole.GUARDIAN, UserRole.SOCIETY_MEMBER, UserRole.SECURITY, UserRole.VOLUNTEER]:
+            if user.role == UserRole.GUARDIAN:
+                return qs.filter(
+                    Q(resident__guardian_relationships__guardian=user) |
+                    Q(resident__guardian_relationships__isnull=True) |
+                    Q(accepted_by=user) | Q(responders__user=user)
+                ).filter(Q(status__in=active_escalating) | Q(accepted_by=user) | Q(responders__user=user)).distinct()
+
+            user_soc_ids = list(user.society_assignments.values_list('society_id', flat=True))
+            if user_soc_ids:
+                return qs.filter(
+                    Q(resident__flat_mappings__flat__block__society_id__in=user_soc_ids) |
+                    Q(resident__society_assignments__society_id__in=user_soc_ids) |
+                    Q(resident__flat_mappings__isnull=True) |
+                    Q(accepted_by=user) | Q(responders__user=user)
+                ).filter(Q(status__in=active_escalating) | Q(accepted_by=user) | Q(responders__user=user)).distinct()
+
             return qs.filter(
                 Q(status__in=active_escalating) |
                 Q(accepted_by=user) | Q(responders__user=user)
@@ -201,15 +218,17 @@ class ResolveIncidentView(APIView):
 
         if user.role == UserRole.GUARDIAN:
             is_assigned = GuardianRelationship.objects.filter(resident=incident.resident, guardian=user).exists()
+            if not is_assigned and GuardianRelationship.objects.filter(resident=incident.resident).count() == 0:
+                is_assigned = True
         elif user.role in [UserRole.SECURITY, UserRole.SOCIETY_MEMBER]:
             res_soc_ids = set(incident.resident.flat_mappings.filter(is_active=True).values_list('flat__block__society_id', flat=True))
             usr_soc_ids = set(user.society_assignments.values_list('society_id', flat=True))
-            is_assigned = bool(res_soc_ids and usr_soc_ids and res_soc_ids.intersection(usr_soc_ids))
+            is_assigned = bool(not res_soc_ids or not usr_soc_ids or res_soc_ids.intersection(usr_soc_ids))
         elif user.role == UserRole.VOLUNTEER:
             has_avail_profile = VolunteerProfile.objects.filter(user=user, availability_status='AVAILABLE').exists()
             res_soc_ids = set(incident.resident.flat_mappings.filter(is_active=True).values_list('flat__block__society_id', flat=True))
             usr_soc_ids = set(user.society_assignments.values_list('society_id', flat=True))
-            soc_match = bool(not usr_soc_ids or res_soc_ids.intersection(usr_soc_ids))
+            soc_match = bool(not res_soc_ids or not usr_soc_ids or res_soc_ids.intersection(usr_soc_ids))
             is_assigned = has_avail_profile and soc_match
 
         if not (is_admin or is_acceptor or is_confirmed_responder or is_assigned):

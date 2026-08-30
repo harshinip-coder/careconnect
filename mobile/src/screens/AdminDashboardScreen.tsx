@@ -37,7 +37,11 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
   const [newSocAddr, setNewSocAddr] = useState('');
   const [newSocCity, setNewSocCity] = useState('');
 
-  const loadData = async () => {
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>([]);
+  const dismissedAlertIdsRef = React.useRef<string[]>([]);
+
+  const loadData = async (overrideDismissed?: string[]) => {
+    const currentDismissed = overrideDismissed || dismissedAlertIdsRef.current;
     // 1. Fetch backend stats count
     try {
       const statsRes = await emergencyAPI.getStats();
@@ -67,7 +71,7 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
       });
 
       const alertPending = incList.find(i =>
-        !dismissedAlertIds.includes(String(i.id)) &&
+        !currentDismissed.includes(String(i.id)) &&
         (i.status === 'PENDING' || i.status === 'ESCALATING' || i.status === 'UNRESPONDED') &&
         (i.current_stage === 'ADMIN' || i.status === 'UNRESPONDED')
       );
@@ -109,20 +113,20 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 3000);
+    const interval = setInterval(() => loadData(), 3000);
     return () => clearInterval(interval);
-  }, [dismissedAlertIds]);
+  }, []);
 
   const handleAccept = async (id: string) => {
+    const updated = [...dismissedAlertIdsRef.current, String(id)];
+    dismissedAlertIdsRef.current = updated;
+    setDismissedAlertIds(updated);
+    setActiveAlert(null);
     try {
-      if (id) {
-        setDismissedAlertIds(prev => [...prev, String(id)]);
-      }
-      setActiveAlert(null);
       const res = await emergencyAPI.acceptIncident(id);
       if (res.data.success) {
         Alert.alert("Emergency Accepted!", "You are assigned as emergency responder.");
-        loadData();
+        loadData(updated);
         navigation.navigate('EmergencyChat', { incidentId: id });
       }
     } catch (err: any) {
@@ -131,16 +135,16 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
   };
 
   const handleDecline = async (id: string) => {
+    const updated = [...dismissedAlertIdsRef.current, String(id)];
+    dismissedAlertIdsRef.current = updated;
+    setDismissedAlertIds(updated);
+    setActiveAlert(null);
     try {
       await emergencyAPI.declineIncident(id);
     } catch (err: any) {
       // ignore decline network error
     } finally {
-      if (id) {
-        setDismissedAlertIds(prev => [...prev, String(id)]);
-      }
-      setActiveAlert(null);
-      loadData();
+      loadData(updated);
     }
   };
 

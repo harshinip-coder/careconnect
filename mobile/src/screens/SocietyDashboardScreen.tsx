@@ -17,14 +17,15 @@ export const SocietyDashboardScreen = ({ navigation }: any) => {
   const [showMapModal, setShowMapModal] = useState(false);
   const [selectedMapIncident, setSelectedMapIncident] = useState<EmergencyIncident | null>(null);
 
-  const fetchIncidents = async () => {
+  const fetchIncidents = async (dismissedIds = dismissedAlertIds) => {
     try {
       const res = await emergencyAPI.getIncidents();
-      const list: EmergencyIncident[] = res.data.results || res.data.data || [];
+      const raw = res?.data;
+      const list: EmergencyIncident[] = Array.isArray(raw) ? raw : (raw?.results || raw?.data || []);
       setIncidents(list);
 
       const alertPending = list.find(i =>
-        !dismissedAlertIds.includes(String(i.id)) &&
+        !dismissedIds.includes(String(i.id)) &&
         (i.status === 'PENDING' || i.status === 'ESCALATING' || i.status === 'UNRESPONDED')
       );
       setActiveAlert(alertPending || null);
@@ -40,13 +41,14 @@ export const SocietyDashboardScreen = ({ navigation }: any) => {
   }, [dismissedAlertIds]);
 
   const handleAccept = async (id: string) => {
+    const updated = [...dismissedAlertIds, String(id)];
+    setDismissedAlertIds(updated);
+    setActiveAlert(null);
     try {
-      if (id) setDismissedAlertIds(prev => [...prev, String(id)]);
-      setActiveAlert(null);
       const res = await emergencyAPI.acceptIncident(id);
       if (res.data.success) {
         Alert.alert("Emergency Accepted!", "You are assigned as society responder.");
-        fetchIncidents();
+        fetchIncidents(updated);
         navigation.navigate('EmergencyChat', { incidentId: id });
       }
     } catch (err: any) {
@@ -55,11 +57,12 @@ export const SocietyDashboardScreen = ({ navigation }: any) => {
   };
 
   const handleDecline = async (id: string) => {
+    const updated = [...dismissedAlertIds, String(id)];
+    setDismissedAlertIds(updated);
+    setActiveAlert(null);
     try {
-      if (id) setDismissedAlertIds(prev => [...prev, String(id)]);
-      setActiveAlert(null);
       await emergencyAPI.declineIncident(id);
-      fetchIncidents();
+      fetchIncidents(updated);
     } catch (err: any) {
       Alert.alert("Decline Failed", err.response?.data?.message || err.message);
     }

@@ -57,6 +57,7 @@ class EmergencyIncident(models.Model):
     status = models.CharField(max_length=20, choices=IncidentStatus.choices, default=IncidentStatus.PENDING, db_index=True)
     current_stage = models.CharField(max_length=30, choices=EscalationStage.choices, default=EscalationStage.GUARDIAN, db_index=True)
     response_deadline = models.DateTimeField(null=True, blank=True, db_index=True)
+    global_deadline = models.DateTimeField(null=True, blank=True, db_index=True)
     
     accepted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='incidents_accepted')
     accepted_at = models.DateTimeField(null=True, blank=True)
