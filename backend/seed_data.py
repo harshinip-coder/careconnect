@@ -89,6 +89,9 @@ def run_seed():
                     address=f"Flat A-{101 + len(created_users)}, Green Valley Heights",
                     is_active=True
                 )
+            if role == UserRole.ADMIN:
+                u.is_staff = True
+                u.is_superuser = True
             u.is_active = True
             u.set_password(DEFAULT_PASSWORD)
             u.save()
