@@ -89,6 +89,11 @@ class EmergencyIncidentViewSet(viewsets.ReadOnlyModelViewSet):
             EscalationStage.VOLUNTEER, EscalationStage.ADMIN, EscalationStage.COMPLETED
         ]
 
+        valid_community_stages = [
+            EscalationStage.COMMUNITY, EscalationStage.SOCIETY_MEMBER, EscalationStage.SECURITY,
+            EscalationStage.VOLUNTEER, EscalationStage.ADMIN, EscalationStage.COMPLETED
+        ]
+
         # For Responders: filter relevant incidents based on current escalation stage and assignments
         if user.role in [UserRole.GUARDIAN, UserRole.SOCIETY_MEMBER, UserRole.SECURITY, UserRole.VOLUNTEER]:
             if user.role == UserRole.GUARDIAN:
@@ -105,10 +110,13 @@ class EmergencyIncidentViewSet(viewsets.ReadOnlyModelViewSet):
                     Q(resident__society_assignments__society_id__in=user_soc_ids) |
                     Q(resident__flat_mappings__isnull=True) |
                     Q(accepted_by=user) | Q(responders__user=user)
-                ).filter(Q(status__in=active_escalating) | Q(accepted_by=user) | Q(responders__user=user)).distinct()
+                ).filter(
+                    (Q(current_stage__in=valid_community_stages) & Q(status__in=active_escalating)) |
+                    Q(accepted_by=user) | Q(responders__user=user)
+                ).distinct()
 
             return qs.filter(
-                Q(status__in=active_escalating) |
+                (Q(current_stage__in=valid_community_stages) & Q(status__in=active_escalating)) |
                 Q(accepted_by=user) | Q(responders__user=user)
             ).distinct()
 

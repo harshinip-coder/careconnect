@@ -32,6 +32,7 @@ export const GuardianDashboardScreen = ({ navigation }: any) => {
       // Check if there is an active alert waiting for guardian attention
       const alertPending = list.find(i =>
         !dismissedIds.includes(String(i.id)) &&
+        (i.current_stage === 'GUARDIAN' || i.current_stage === 'PRIMARY_GUARDIAN' || i.current_stage === 'SECONDARY_GUARDIAN' || i.current_stage === 'COMMUNITY') &&
         (i.status === 'PENDING' || i.status === 'ESCALATING' || i.status === 'UNRESPONDED')
       );
       setActiveAlert(alertPending || null);

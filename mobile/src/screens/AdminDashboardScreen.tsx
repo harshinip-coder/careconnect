@@ -37,7 +37,6 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
   const [newSocAddr, setNewSocAddr] = useState('');
   const [newSocCity, setNewSocCity] = useState('');
 
-  const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>([]);
   const dismissedAlertIdsRef = React.useRef<string[]>([]);
 
   const loadData = async (overrideDismissed?: string[]) => {

@@ -30,6 +30,7 @@ export const SecurityDashboardScreen = ({ navigation }: any) => {
 
       const alertPending = list.find(i =>
         !dismissedIds.includes(String(i.id)) &&
+        (i.current_stage === 'COMMUNITY' || i.current_stage === 'SECURITY') &&
         (i.status === 'PENDING' || i.status === 'ESCALATING' || i.status === 'UNRESPONDED')
       );
       setActiveAlert(alertPending || null);

@@ -32,6 +32,7 @@ export const VolunteerDashboardScreen = ({ navigation }: any) => {
 
       const alertPending = isAvailable ? list.find(i =>
         !dismissedIds.includes(String(i.id)) &&
+        (i.current_stage === 'COMMUNITY' || i.current_stage === 'VOLUNTEER') &&
         (i.status === 'PENDING' || i.status === 'ESCALATING' || i.status === 'UNRESPONDED')
       ) : undefined;
       setActiveAlert(alertPending || null);
