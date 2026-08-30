@@ -114,7 +114,7 @@ export const EmergencyAlertModal: React.FC<EmergencyAlertModalProps> = ({
                 <View
                   style={[
                     styles.progressBarFill,
-                    { width: `${Math.min(100, Math.max(0, (secondsRemaining / 30) * 100))}%` },
+                    { width: `${Math.min(100, Math.max(0, (secondsRemaining / (incident.current_stage === 'ADMIN' ? 840 : 30)) * 100))}%` },
                   ]}
                 />
               </View>

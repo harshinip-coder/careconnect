@@ -389,22 +389,55 @@ export const AdminDashboardScreen = ({ navigation }: any) => {
                         </View>
                       </View>
 
-                      <TouchableOpacity
-                        style={[styles.actionBtn, { backgroundColor: '#0D9488', marginBottom: 6 }]}
-                        onPress={() => {
-                          setSelectedMapIncident(inc);
-                          setShowLiveMapModal(true);
-                        }}
-                      >
-                        <Text style={styles.actionBtnText}>📍 View Live Location on Map</Text>
-                      </TouchableOpacity>
+                      {inc.status === 'UNRESPONDED' && (
+                        <View style={{ backgroundColor: '#FEE2E2', padding: 6, borderRadius: 6, marginVertical: 4, alignItems: 'center' }}>
+                          <Text style={{ color: '#991B1B', fontWeight: '900', fontSize: 11 }}>⚠️ TIMEOUT: NO RESPONDER ACCEPTED IN 15 MINS</Text>
+                        </View>
+                      )}
 
-                      <TouchableOpacity
-                        style={styles.actionBtn}
-                        onPress={() => navigation.navigate('EmergencyChat', { incidentId: inc.id })}
-                      >
-                        <Text style={styles.actionBtnText}>Monitor Chat & Audit</Text>
-                      </TouchableOpacity>
+                      {inc.accepted_by_details && (
+                        <View style={{ backgroundColor: '#DBEAFE', padding: 6, borderRadius: 6, marginVertical: 4 }}>
+                          <Text style={{ color: '#1E40AF', fontWeight: '800', fontSize: 11 }}>🟢 ACCEPTED BY: {inc.accepted_by_details.full_name || inc.accepted_by_details.username}</Text>
+                        </View>
+                      )}
+
+                      {!inc.accepted_by && inc.status !== 'RESOLVED' && inc.status !== 'CANCELLED' && inc.status !== 'UNRESPONDED' && (
+                        <View style={{ flexDirection: 'row', gap: 6, marginVertical: 6 }}>
+                          <TouchableOpacity
+                            style={{ flex: 1, backgroundColor: '#16A34A', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
+                            onPress={() => handleAccept(inc.id)}
+                          >
+                            <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 12 }}>✓ ACCEPT SOS</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={{ flex: 1, backgroundColor: '#DC2626', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
+                            onPress={() => handleDecline(inc.id)}
+                          >
+                            <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 12 }}>✕ DECLINE</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {(inc.accepted_by || inc.status === 'RESOLVED') && inc.status !== 'CANCELLED' && (
+                        <>
+                          <TouchableOpacity
+                            style={[styles.actionBtn, { backgroundColor: '#0D9488', marginBottom: 6 }]}
+                            onPress={() => {
+                              setSelectedMapIncident(inc);
+                              setShowLiveMapModal(true);
+                            }}
+                          >
+                            <Text style={styles.actionBtnText}>📍 View Live Location on Map</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.actionBtn}
+                            onPress={() => navigation.navigate('EmergencyChat', { incidentId: inc.id })}
+                          >
+                            <Text style={styles.actionBtnText}>Monitor Chat & Audit</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
                     </View>
                   </View>
                 </View>

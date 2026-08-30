@@ -161,25 +161,42 @@ export const GuardianDashboardScreen = ({ navigation }: any) => {
                 <View style={{ backgroundColor: '#DCFCE7', padding: 8, borderRadius: 6, marginVertical: 8 }}>
                   <Text style={{ color: '#15803D', fontWeight: '800', fontSize: 13 }}>✓ YOU HAVE ACCEPTED THIS SOS</Text>
                 </View>
+              ) : inc.accepted_by_details ? (
+                <View style={{ backgroundColor: '#DBEAFE', padding: 8, borderRadius: 6, marginVertical: 8 }}>
+                  <Text style={{ color: '#1E40AF', fontWeight: '800', fontSize: 13 }}>🟢 ACCEPTED BY: {inc.accepted_by_details.full_name || inc.accepted_by_details.username}</Text>
+                </View>
               ) : null}
 
-              {inc.status !== 'RESOLVED' && inc.status !== 'CANCELLED' ? (
-                <View style={{ flexDirection: 'column', gap: 8, marginTop: 10 }}>
-                  {!isAcceptedByMe && !isDeclinedByMe && (
-                    <View style={{ flexDirection: 'row', gap: 10 }}>
-                      <TouchableOpacity
-                        style={{ flex: 1, backgroundColor: '#16A34A', paddingVertical: 10, borderRadius: 8, alignItems: 'center' }}
-                        onPress={() => handleAccept(inc.id)}
-                      >
-                        <Text style={{ color: '#FFF', fontWeight: '800' }}>✓ ACCEPT SOS</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={{ flex: 1, backgroundColor: '#DC2626', paddingVertical: 10, borderRadius: 8, alignItems: 'center' }}
-                        onPress={() => handleDecline(inc.id)}
-                      >
-                        <Text style={{ color: '#FFF', fontWeight: '800' }}>✕ DECLINE</Text>
-                      </TouchableOpacity>
-                    </View>
+              {inc.status === 'UNRESPONDED' && (
+                <View style={{ backgroundColor: '#FEE2E2', padding: 8, borderRadius: 6, marginVertical: 8, alignItems: 'center' }}>
+                  <Text style={{ color: '#991B1B', fontWeight: '900', fontSize: 12 }}>⚠️ TIMEOUT: NO RESPONDER ACCEPTED IN 15 MINS</Text>
+                </View>
+              )}
+
+              {inc.status !== 'RESOLVED' && inc.status !== 'CANCELLED' && inc.status !== 'UNRESPONDED' ? (
+                <View style={{ flexDirection: 'column', gap: 8, marginTop: 6 }}>
+                  {!isAcceptedByMe && !isDeclinedByMe && !inc.accepted_by && (
+                    <>
+                      {inc.current_stage !== 'GUARDIAN' && inc.current_stage !== 'PRIMARY_GUARDIAN' && inc.current_stage !== 'SECONDARY_GUARDIAN' ? (
+                        <Text style={{ color: '#D97706', fontWeight: '700', fontSize: 11, marginVertical: 2 }}>
+                          ⏰ Stage Window Expired (Accept Still Available)
+                        </Text>
+                      ) : null}
+                      <View style={{ flexDirection: 'row', gap: 10 }}>
+                        <TouchableOpacity
+                          style={{ flex: 1, backgroundColor: '#16A34A', paddingVertical: 12, borderRadius: 8, alignItems: 'center' }}
+                          onPress={() => handleAccept(inc.id)}
+                        >
+                          <Text style={{ color: '#FFF', fontWeight: '800' }}>✓ ACCEPT SOS</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={{ flex: 1, backgroundColor: '#DC2626', paddingVertical: 12, borderRadius: 8, alignItems: 'center' }}
+                          onPress={() => handleDecline(inc.id)}
+                        >
+                          <Text style={{ color: '#FFF', fontWeight: '800' }}>✕ DECLINE</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
                   )}
 
                   {isAcceptedByMe && (
@@ -217,7 +234,8 @@ export const GuardianDashboardScreen = ({ navigation }: any) => {
                 </View>
               ) : null}
 
-              {inc.status !== 'CANCELLED' ? (
+              {/* Reveal Map and Chat buttons after accepting or when incident is active/resolved */}
+              {(isAcceptedByMe || inc.accepted_by || inc.status === 'RESOLVED') && inc.status !== 'CANCELLED' ? (
                 <>
                   <TouchableOpacity
                     style={{ backgroundColor: '#0D9488', paddingVertical: 10, borderRadius: 8, alignItems: 'center', marginTop: 8 }}

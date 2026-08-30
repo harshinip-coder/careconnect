@@ -49,9 +49,13 @@ def cancel_incident_timer(incident_id):
 STAGE_TIMEOUT_SECONDS = 30
 
 def get_stage_timeout_seconds(stage):
-    """Return stage duration in seconds: Guardian=30s, Community=30s, Admin=60s."""
-    if stage == EscalationStage.ADMIN:
-        return 60
+    """Return stage duration in seconds: Guardian=30s, Community=30s, Admin=840s (Total 15 mins)."""
+    if stage in [EscalationStage.GUARDIAN, EscalationStage.PRIMARY_GUARDIAN, EscalationStage.SECONDARY_GUARDIAN]:
+        return 30
+    elif stage in [EscalationStage.COMMUNITY, EscalationStage.SOCIETY_MEMBER, EscalationStage.SECURITY, EscalationStage.VOLUNTEER]:
+        return 30
+    elif stage == EscalationStage.ADMIN:
+        return 840
     return STAGE_TIMEOUT_SECONDS
 
 def get_resident_society(resident):
